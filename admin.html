@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Exam Admin · Tech Verse</title>
   <link rel="icon" href="assets/icons/favicon.ico" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/admin.css" />
@@ -16,11 +16,14 @@
   </div>
 
   <div class="admin-shell hidden" id="admin-shell">
-    <aside class="admin-sidebar">
-      <div class="admin-sidebar-title">
-        Exam Control
-        <button type="button" class="theme-btn" id="theme-btn" style="width:32px;height:32px"><i class="fa-solid fa-sun"></i></button>
+    <div class="admin-topbar">
+      <a href="index.html" class="admin-topbar-brand"><img src="assets/logo.png" alt="" /> Exam Control</a>
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <button type="button" class="theme-btn" id="theme-btn" style="width:34px;height:34px"><i class="fa-solid fa-sun"></i></button>
+        <button type="button" class="admin-sidebar-toggle" id="admin-sidebar-toggle" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
       </div>
+    </div>
+    <aside class="admin-sidebar" id="admin-sidebar">
       <nav>
         <button class="admin-nav-item active" data-section="overview"><i class="fa-solid fa-chart-pie"></i> Overview</button>
         <button class="admin-nav-item" data-section="exams"><i class="fa-solid fa-file-pen"></i> Exams</button>
