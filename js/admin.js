@@ -73,7 +73,13 @@ function bindSidebar() {
       document.querySelectorAll(".admin-section").forEach((s) => s.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById(`section-${btn.dataset.section}`)?.classList.add("active");
+      document.getElementById("admin-sidebar")?.classList.remove("open");
+      document.getElementById("admin-sidebar-toggle")?.classList.remove("open");
     });
+  });
+  document.getElementById("admin-sidebar-toggle")?.addEventListener("click", (e) => {
+    document.getElementById("admin-sidebar")?.classList.toggle("open");
+    e.currentTarget.classList.toggle("open");
   });
 }
 
@@ -353,12 +359,11 @@ async function openExamModal(examId) {
         <button type="button" class="btn btn-outline btn-sm" id="add-q-btn"><i class="fa-solid fa-plus"></i> Add question</button>
       </div>
       <div class="exam-tab-panel" id="panel-bulk">
-        <p class="form-hint" style="margin-top:0;font-size:0.85rem">
-          একসাথে অনেক প্রশ্ন যোগ করুন — Plain text (Q/A/B/C/D/Answer/Explanation), CSV, অথবা JSON ফরম্যাটে পেস্ট করুন।
-          নিচে যোগ হলে বিদ্যমান প্রশ্নগুলোর সাথে যুক্ত হবে।
-        </p>
-        <textarea id="bulk-import-text" rows="12" placeholder="এখানে প্রশ্ন পেস্ট করুন…" style="width:100%;font-family:var(--mono);font-size:0.85rem;padding:0.75rem;border-radius:10px;border:1px solid var(--border-strong);background:var(--bg-elevated)"></textarea>
-        <div id="bulk-import-report" class="muted" style="margin-top:0.5rem;font-size:0.85rem"></div>
+        <div class="bulk-import-hint">
+          <i class="fa-solid fa-bolt"></i> একসাথে অনেক প্রশ্ন যোগ করুন — <code>Q/A/B/C/D/Answer/Explanation</code> প্লেইন টেক্সট, CSV, অথবা JSON ফরম্যাটে পেস্ট করুন। যোগ হলে নিচে বিদ্যমান প্রশ্নের তালিকায় যুক্ত হবে — আলাদা করে সেভ করতে ভুলবেন না।
+        </div>
+        <textarea id="bulk-import-text" rows="12" placeholder="এখানে প্রশ্ন পেস্ট করুন…"></textarea>
+        <div id="bulk-import-report" class="muted"></div>
         <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
           <button type="button" class="btn btn-primary btn-sm" id="bulk-import-btn"><i class="fa-solid fa-upload"></i> Parse &amp; Add to Questions</button>
           <button type="button" class="btn btn-outline btn-sm" id="bulk-sample-btn">Load Sample</button>

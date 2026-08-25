@@ -135,6 +135,29 @@ export async function userHasCourseAccess(uid, courseId, enrolledCourses = []) {
   }
 }
 
+/** Pull this user's course purchase/access history from the shared Course-site
+ * `accessCodes` collection and join it with `courses` for display names —
+ * this is what powers the "My Courses" block on the Exam site Profile page. */
+export async function getUserCourseHistory(uid, coursesList = []) {
+  try {
+    const { collection, query, where, getDocs } = await import(
+      "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js"
+    );
+    const snap = await getDocs(query(collection(db, "accessCodes"), where("uid", "==", uid), where("used", "==", true)));
+    let courses = coursesList;
+    if (!courses.length) {
+      const cSnap = await getDocs(collection(db, "courses"));
+      courses = cSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    }
+    return snap.docs
+      .map((d) => d.data())
+      .map((row) => ({ ...row, course: courses.find((c) => c.id === row.courseId) || null }))
+      .sort((a, b) => (b.usedAt?.toMillis?.() || 0) - (a.usedAt?.toMillis?.() || 0));
+  } catch {
+    return [];
+  }
+}
+
 /* ---------------------------------------------------------------------- */
 /* Small generic helpers                                                  */
 /* ---------------------------------------------------------------------- */

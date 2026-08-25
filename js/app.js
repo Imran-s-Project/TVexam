@@ -29,6 +29,7 @@ import {
   touchLastActive,
   userHasCourseAccess,
   getCoursePricing,
+  getUserCourseHistory,
   COURSE_SITE_URL,
   debounce,
   openModal,
@@ -45,6 +46,8 @@ initTheme();
 bindAuthForms();
 document.getElementById("course-site-link").href = COURSE_SITE_URL;
 document.getElementById("footer-course-link").href = COURSE_SITE_URL;
+const courseSiteLinkMobile = document.getElementById("course-site-link-mobile");
+if (courseSiteLinkMobile) courseSiteLinkMobile.href = COURSE_SITE_URL;
 
 document.getElementById("hamburger")?.addEventListener("click", () => {
   document.getElementById("nav-links")?.classList.toggle("open");
@@ -527,26 +530,35 @@ async function loadTakeExam(examId) {
 
 function navigatorHtml() {
   const { questions, index, answers, flagged } = takeState;
+  const answeredCount = Object.keys(answers).length;
+  const flaggedCount = flagged.size;
   return `
-    <div class="q-navigator">
+    <button type="button" class="q-map-toggle" id="q-map-toggle" aria-expanded="false">
+      <i class="fa-solid fa-table-cells"></i>
+      <span>প্রশ্ন ম্যাপ</span>
+      <span class="q-map-toggle-stats">
+        <i class="fa-solid fa-check"></i> ${answeredCount}
+        ${flaggedCount ? `· <i class="fa-solid fa-flag"></i> ${flaggedCount}` : ""}
+      </span>
+      <i class="fa-solid fa-chevron-down q-map-chevron"></i>
+    </button>
+    <div class="q-navigator" id="q-navigator">
       ${questions
         .map((q, i) => {
-          const cls = [
-            "q-nav-btn",
-            answers[q.id] !== undefined ? "answered" : "",
-            flagged.has(q.id) ? "flagged" : "",
-            i === index && !takeState.exam.showAll ? "current" : "",
-          ]
+          const isAnswered = answers[q.id] !== undefined;
+          const isCurrent = i === index && !takeState.exam.showAll;
+          const cls = ["q-nav-btn", isAnswered ? "answered" : "", flagged.has(q.id) ? "flagged" : "", isCurrent ? "current" : ""]
             .filter(Boolean)
             .join(" ");
-          return `<button type="button" class="${cls}" data-goto="${i}">${i + 1}</button>`;
+          const label = isAnswered && !isCurrent ? `<i class="fa-solid fa-check"></i>` : i + 1;
+          return `<button type="button" class="${cls}" data-goto="${i}" title="Question ${i + 1}">${label}</button>`;
         })
         .join("")}
     </div>
-    <div class="q-nav-legend">
-      <span><i class="dot answered"></i> Answered</span>
-      <span><i class="dot flagged"></i> Flagged</span>
-      <span><i class="dot"></i> Unanswered</span>
+    <div class="q-nav-legend" id="q-nav-legend">
+      <span><i class="dot answered"></i> উত্তর দেওয়া</span>
+      <span><i class="dot flagged"></i> ফ্ল্যাগ করা</span>
+      <span><i class="dot"></i> বাকি আছে</span>
     </div>`;
 }
 
@@ -562,6 +574,15 @@ function bindNavigator(root) {
       }
     });
   });
+  const toggle = root.querySelector("#q-map-toggle");
+  const nav = root.querySelector("#q-navigator");
+  const legend = root.querySelector("#q-nav-legend");
+  toggle?.addEventListener("click", () => {
+    const open = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!open));
+    nav?.classList.toggle("open", !open);
+    legend?.classList.toggle("open", !open);
+  });
 }
 
 function renderTakeShell() {
@@ -570,7 +591,10 @@ function renderTakeShell() {
     <div class="exam-topbar">
       <div>
         <strong>${escapeHtml(exam.title)}</strong>
-        <div class="muted" style="font-size:0.82rem">${questions.length} questions${exam.negativeMarking ? ` · −${exam.negativeMarking} per wrong` : ""}</div>
+        <div class="exam-meta-row">
+          <span class="exam-meta-chip"><i class="fa-solid fa-list-ol"></i> ${questions.length}টি প্রশ্ন</span>
+          ${exam.negativeMarking ? `<span class="exam-meta-chip warn"><i class="fa-solid fa-minus"></i> −${exam.negativeMarking}/ভুল</span>` : ""}
+        </div>
       </div>
       ${
         remainingSec != null
@@ -1020,39 +1044,93 @@ async function renderLb(examId, list) {
 /* ---------- Profile ---------- */
 async function loadProfile() {
   const el = document.getElementById("profile-view");
+  el.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   const p = userProfile || (await getUserProfile(currentUser.uid));
   userProfile = p;
+
+  const courses = await ensureCourses();
+  const history = await getUserCourseHistory(currentUser.uid, courses);
+
   el.innerHTML = `
-    <div class="profile-grid">
-      <div class="profile-avatar-wrap">
-        <div class="profile-avatar" style="display:grid;place-items:center;font-size:2.5rem;font-weight:800;color:var(--primary-hover)">
-          ${(currentUser.displayName || currentUser.email || "U").charAt(0).toUpperCase()}
-        </div>
-        ${p?.isAdmin ? `<span class="badge badge-open">Admin</span>` : ""}
-      </div>
-      <div>
-        <form id="profile-form">
-          <div class="field"><label>Display name</label><input type="text" id="pf-name" value="${escapeHtml(p?.displayName || currentUser.displayName || "")}" /></div>
-          <div class="field"><label>Email</label><input type="email" value="${escapeHtml(currentUser.email || "")}" disabled /></div>
-          <div class="field"><label>Enrolled courses</label>
-            <input type="text" value="${(p?.enrolledCourses || []).length} course(s) — managed on Course site" disabled />
+    <div id="profile-print-area">
+      <div class="profile-grid">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" style="display:grid;place-items:center;font-size:2.5rem;font-weight:800;color:var(--primary-hover)">
+            ${(currentUser.displayName || currentUser.email || "U").charAt(0).toUpperCase()}
           </div>
-          <button type="submit" class="btn btn-primary">Save Profile</button>
-          <button type="button" class="btn btn-outline" id="pf-logout" style="margin-left:0.5rem">Sign Out</button>
-        </form>
-        <p class="form-hint" style="margin-top:1rem">Profile data lives in the shared <code>users</code> collection. Full avatar & enrollment management is on the Course site.</p>
+          ${p?.isAdmin ? `<span class="badge badge-open">Admin</span>` : ""}
+          <div class="muted" style="font-size:0.8rem;margin-top:0.5rem">${escapeHtml(currentUser.email || "")}</div>
+        </div>
+        <div>
+          <form id="profile-form">
+            <div class="admin-grid">
+              <div class="field"><label>নাম</label><input type="text" id="pf-name" value="${escapeHtml(p?.displayName || currentUser.displayName || "")}" /></div>
+              <div class="field"><label>ফোন নম্বর</label><input type="tel" id="pf-phone" placeholder="+8801XXXXXXXXX" value="${escapeHtml(p?.phone || "")}" /></div>
+            </div>
+            <div class="field"><label>ঠিকানা</label><input type="text" id="pf-address" placeholder="জেলা, বিভাগ" value="${escapeHtml(p?.address || "")}" /></div>
+            <div class="admin-grid">
+              <div class="field"><label>জন্মতারিখ</label><input type="date" id="pf-dob" value="${escapeHtml(p?.dob || "")}" /></div>
+              <div class="field"><label>ইমেইল</label><input type="email" value="${escapeHtml(currentUser.email || "")}" disabled /></div>
+            </div>
+            <div class="field-group-label">সোশ্যাল লিংক</div>
+            <div class="admin-grid">
+              <div class="field"><label><i class="fa-brands fa-facebook"></i> Facebook</label><input type="url" id="pf-fb" placeholder="https://facebook.com/…" value="${escapeHtml(p?.social?.facebook || "")}" /></div>
+              <div class="field"><label><i class="fa-brands fa-youtube"></i> YouTube</label><input type="url" id="pf-yt" placeholder="https://youtube.com/@…" value="${escapeHtml(p?.social?.youtube || "")}" /></div>
+            </div>
+            <div class="field"><label><i class="fa-brands fa-whatsapp"></i> WhatsApp</label><input type="tel" id="pf-wa" placeholder="+8801XXXXXXXXX" value="${escapeHtml(p?.social?.whatsapp || "")}" /></div>
+            <div class="no-print" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem">
+              <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Save Profile</button>
+              <button type="button" class="btn btn-outline" id="pf-export-pdf"><i class="fa-solid fa-file-pdf"></i> Export as PDF</button>
+              <button type="button" class="btn btn-ghost" id="pf-logout">Sign Out</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card profile-courses-card">
+        <h3 style="margin:0 0 0.35rem"><i class="fa-solid fa-graduation-cap"></i> আমার কোর্স ও পারচেজ হিস্ট্রি</h3>
+        <p class="muted" style="margin:0 0 0.9rem;font-size:0.85rem">Course সাইট থেকে লাইভ — একই Firebase অ্যাকাউন্টে যুক্ত।</p>
+        ${
+          history.length
+            ? `<ul class="list-clean">${history
+                .map(
+                  (h) => `
+              <li>
+                <div>
+                  <strong>${escapeHtml(h.course?.title || "Course")}</strong>
+                  <div class="muted" style="font-size:0.78rem">${h.usedAt ? formatDateTime(h.usedAt) : ""}</div>
+                </div>
+                <span class="badge badge-open">Unlocked</span>
+              </li>`
+                )
+                .join("")}</ul>`
+            : `<div class="empty-state" style="padding:1.5rem 1rem"><p>এখনো কোনো কোর্স আনলক করা হয়নি — <a href="${COURSE_SITE_URL}" target="_blank" rel="noopener">Course Site এ দেখুন</a></p></div>`
+        }
       </div>
     </div>`;
+
   document.getElementById("pf-logout")?.addEventListener("click", () => signOutUser());
+  document.getElementById("pf-export-pdf")?.addEventListener("click", () => {
+    document.title = `Profile — ${p?.displayName || currentUser.displayName || currentUser.email || "TechVerse"}`;
+    window.print();
+  });
   document.getElementById("profile-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("pf-name").value.trim();
+    const phone = document.getElementById("pf-phone").value.trim();
+    const address = document.getElementById("pf-address").value.trim();
+    const dob = document.getElementById("pf-dob").value;
+    const social = {
+      facebook: document.getElementById("pf-fb").value.trim(),
+      youtube: document.getElementById("pf-yt").value.trim(),
+      whatsapp: document.getElementById("pf-wa").value.trim(),
+    };
     try {
-      await updateDoc(doc(db, "users", currentUser.uid), { displayName: name });
+      await updateDoc(doc(db, "users", currentUser.uid), { displayName: name, phone, address, dob, social });
       const { updateProfile } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js");
       await updateProfile(currentUser, { displayName: name });
       toast("Profile updated", "success");
-      userProfile = { ...userProfile, displayName: name };
+      userProfile = { ...userProfile, displayName: name, phone, address, dob, social };
       document.getElementById("nav-name").textContent = name || "User";
     } catch {
       toast("Could not update profile", "error");
