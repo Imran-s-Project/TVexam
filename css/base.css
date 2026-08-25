@@ -176,8 +176,8 @@ p {
   display: flex;
   align-items: center;
   gap: 0.2rem;
-  margin-left: 0.75rem;
-  flex: 1;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 .nav-links a {
   position: relative;
@@ -206,7 +206,6 @@ p {
   display: none;
 }
 .nav-links a.nav-link-admin {
-  margin-left: auto;
   color: var(--accent);
   border: 1px solid var(--accent-soft);
   background: var(--accent-soft);
