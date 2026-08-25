@@ -333,3 +333,72 @@
 .list-clean li:last-child {
   border-bottom: none;
 }
+
+/* ---------- Question navigator (take-exam) ---------- */
+.q-navigator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+.q-nav-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.q-nav-btn:hover {
+  border-color: var(--primary);
+}
+.q-nav-btn.answered {
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  border-color: var(--primary-soft);
+}
+.q-nav-btn.flagged {
+  box-shadow: inset 0 -3px 0 var(--warning);
+}
+.q-nav-btn.current {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+.q-nav-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-bottom: 1.1rem;
+}
+.q-nav-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.q-nav-legend .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border-strong);
+  display: inline-block;
+}
+.q-nav-legend .dot.answered {
+  background: var(--primary-soft);
+  border-color: var(--primary-soft);
+}
+.q-nav-legend .dot.flagged {
+  box-shadow: inset 0 -2px 0 var(--warning);
+}
+
+/* Leaderboard: highlight current user's row */
+.lb-row-me {
+  background: var(--primary-soft);
+  border-radius: 10px;
+}

@@ -69,6 +69,7 @@
 }
 .exam-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.35rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
@@ -122,4 +123,13 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
+}
+
+#bulk-import-text:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: none;
+}
+.admin-section-head .btn {
+  white-space: nowrap;
 }
