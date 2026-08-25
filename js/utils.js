@@ -5,7 +5,7 @@ import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-export const COURSE_SITE_URL = "https://tvcourse.web.app"; // change to your course site URL
+export const COURSE_SITE_URL = "https://tvcourse.vercel.app"; // change to your course site URL
 export const SUPPORT_EMAIL = "tv.support.info@gmail.com";
 
 /** Time-of-day greeting (Bengali) + current time string, used by the header. */
