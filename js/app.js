@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  addDoc,
   query,
   where,
   orderBy,
@@ -29,6 +30,8 @@ import {
   userHasCourseAccess,
   getCoursePricing,
   COURSE_SITE_URL,
+  debounce,
+  openModal,
 } from "./utils.js";
 import { bindAuthForms } from "./auth.js";
 import { initTheme } from "./theme.js";
@@ -78,6 +81,14 @@ onAuthStateChanged(auth, async (user) => {
 
 window.addEventListener("hashchange", route);
 
+// Warn before leaving/reloading mid-exam so an in-progress attempt isn't lost by accident.
+window.addEventListener("beforeunload", (e) => {
+  if (takeState && !takeState.submitted) {
+    e.preventDefault();
+    e.returnValue = "";
+  }
+});
+
 function parseHash() {
   const raw = (location.hash || "#/").replace(/^#/, "") || "/";
   const [pathPart, queryPart] = raw.split("?");
@@ -107,6 +118,16 @@ async function route() {
   if (currentUser && publicPaths.includes(path)) {
     location.hash = "#/";
     return;
+  }
+
+  // Leaving the take-exam page mid-attempt (nav click etc.) confirms first.
+  if (takeState && !takeState.submitted && path !== "take") {
+    const ok = confirm("এক্সাম এখনো শেষ হয়নি। এই পেজ ছেড়ে গেলে অগ্রগতি হারিয়ে যাবে। আপনি কি নিশ্চিত?");
+    if (!ok) {
+      location.hash = "#/take?id=" + takeState.exam.id;
+      return;
+    }
+    stopTakeState();
   }
 
   if (path === "home" || path === "") {
@@ -147,6 +168,25 @@ async function ensureCourses() {
   return coursesCache;
 }
 
+/* ---------- Exam status / scheduling helpers ---------- */
+function tsToDate(ts) {
+  if (!ts) return null;
+  return ts.toDate ? ts.toDate() : new Date(ts);
+}
+
+function examScheduleState(ex) {
+  const now = new Date();
+  const start = tsToDate(ex.startAt);
+  const end = tsToDate(ex.endAt);
+  if (start && now < start) return { state: "upcoming", start, end };
+  if (end && now > end) return { state: "closed", start, end };
+  return { state: "open", start, end };
+}
+
+function myAttemptsFor(examId, allMyResults) {
+  return allMyResults.filter((r) => r.examId === examId);
+}
+
 /* ---------- Dashboard ---------- */
 async function loadDashboard() {
   const statsEl = document.getElementById("home-stats");
@@ -157,30 +197,36 @@ async function loadDashboard() {
       getDocs(collection(db, "exams")),
       getDocs(query(collection(db, "results"), where("uid", "==", currentUser.uid))),
     ]);
-    const exams = examsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const exams = examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((ex) => ex.status !== "draft");
     const results = resultsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const available = await filterAccessibleExams(exams);
+    const attemptedExamIds = new Set(results.map((r) => r.examId));
+
+    const bestPercent = results.length ? Math.max(...results.map((r) => r.percent || 0)) : null;
 
     statsEl.innerHTML = [
       { n: available.length, l: "Available Exams" },
-      { n: results.length, l: "Attempts" },
+      { n: results.length, l: "Total Attempts" },
       {
         n: results.length
           ? Math.round(results.reduce((s, r) => s + (r.percent || 0), 0) / results.length) + "%"
           : "—",
         l: "Avg Score",
       },
+      { n: bestPercent != null ? bestPercent + "%" : "—", l: "Best Score" },
     ]
       .map((s) => `<div class="stat-card"><div class="n">${s.n}</div><div class="l">${s.l}</div></div>`)
       .join("");
 
+    const unattempted = available.filter((ex) => !attemptedExamIds.has(ex.id));
+    const toShow = (unattempted.length ? unattempted : available).slice(0, 4);
     if (!available.length) {
       examsEl.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-file-pen"></i></div><p>No exams available yet</p></div>`;
     } else {
-      examsEl.innerHTML = `<div class="exam-grid">${available
-        .slice(0, 4)
-        .map((ex) => examCardHtml(ex, results.find((r) => r.examId === ex.id)))
+      examsEl.innerHTML = `<div class="exam-grid">${toShow
+        .map((ex) => examCardHtml(ex, myAttemptsFor(ex.id, results)))
         .join("")}</div>`;
+      bindExamCardEvents(examsEl);
     }
 
     const recent = results
@@ -209,26 +255,86 @@ async function loadDashboard() {
 }
 
 /* ---------- Exam list ---------- */
+let examListCache = { exams: [], results: [] };
+
 async function loadExamList() {
   const grid = document.getElementById("exams-grid");
   grid.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   try {
     const snap = await getDocs(collection(db, "exams"));
-    const exams = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const exams = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((ex) => ex.status !== "draft");
     const resultsSnap = await getDocs(query(collection(db, "results"), where("uid", "==", currentUser.uid)));
     const results = resultsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const available = await filterAccessibleExams(exams);
-    if (!available.length) {
-      grid.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-file-pen"></i></div><p>No exams available</p></div>`;
-      return;
-    }
-    grid.innerHTML = available
-      .map((ex) => examCardHtml(ex, results.find((r) => r.examId === ex.id)))
-      .join("");
+    examListCache = { exams: available, results };
+
+    populateCategoryFilter(available);
+    bindExamToolbar();
+    renderExamGrid();
   } catch (e) {
     console.error(e);
     grid.innerHTML = `<div class="empty-state"><p>Could not load exams</p></div>`;
   }
+}
+
+function populateCategoryFilter(exams) {
+  const sel = document.getElementById("exam-filter-category");
+  if (!sel) return;
+  const cats = [...new Set(exams.map((e) => (e.category || "").trim()).filter(Boolean))].sort();
+  const current = sel.value;
+  sel.innerHTML =
+    `<option value="">সব ক্যাটাগরি</option>` +
+    cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  sel.value = cats.includes(current) ? current : "";
+}
+
+let examToolbarBound = false;
+function bindExamToolbar() {
+  if (examToolbarBound) {
+    renderExamGrid();
+    return;
+  }
+  examToolbarBound = true;
+  const search = document.getElementById("exam-search");
+  const status = document.getElementById("exam-filter-status");
+  const category = document.getElementById("exam-filter-category");
+  const sort = document.getElementById("exam-sort");
+  search?.addEventListener("input", debounce(renderExamGrid, 200));
+  status?.addEventListener("change", renderExamGrid);
+  category?.addEventListener("change", renderExamGrid);
+  sort?.addEventListener("change", renderExamGrid);
+}
+
+function renderExamGrid() {
+  const grid = document.getElementById("exams-grid");
+  if (!grid) return;
+  const { exams, results } = examListCache;
+  const q = (document.getElementById("exam-search")?.value || "").trim().toLowerCase();
+  const statusFilter = document.getElementById("exam-filter-status")?.value || "";
+  const categoryFilter = document.getElementById("exam-filter-category")?.value || "";
+  const sortBy = document.getElementById("exam-sort")?.value || "new";
+  const attemptedIds = new Set(results.map((r) => r.examId));
+
+  let list = exams.filter((ex) => {
+    if (q && !`${ex.title} ${ex.category || ""} ${ex.courseName || ""}`.toLowerCase().includes(q)) return false;
+    if (statusFilter === "open" && attemptedIds.has(ex.id)) return false;
+    if (statusFilter === "done" && !attemptedIds.has(ex.id)) return false;
+    if (categoryFilter && (ex.category || "") !== categoryFilter) return false;
+    return true;
+  });
+
+  if (sortBy === "az") list = [...list].sort((a, b) => a.title.localeCompare(b.title));
+  else if (sortBy === "duration") list = [...list].sort((a, b) => (a.duration || 0) - (b.duration || 0));
+  else list = [...list].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-file-pen"></i></div><p>${
+      exams.length ? "কোনো এক্সাম মিলেনি — ফিল্টার বদলে দেখুন" : "No exams available"
+    }</p></div>`;
+    return;
+  }
+  grid.innerHTML = list.map((ex) => examCardHtml(ex, myAttemptsFor(ex.id, results))).join("");
+  bindExamCardEvents(grid);
 }
 
 async function filterAccessibleExams(exams) {
@@ -252,32 +358,71 @@ async function isExamAccessible(ex, enrolled) {
   return courseAccessCache[ex.courseId];
 }
 
-function examCardHtml(ex, result) {
-  const done = !!result;
+function examCardHtml(ex, myAttempts) {
+  const done = myAttempts.length > 0;
+  const best = done ? myAttempts.reduce((a, b) => ((b.percent || 0) > (a.percent || 0) ? b : a)) : null;
+  const maxAttempts = Number(ex.maxAttempts) || 0;
+  const attemptsLeft = maxAttempts ? Math.max(0, maxAttempts - myAttempts.length) : null;
+  const locked = maxAttempts > 0 && myAttempts.length >= maxAttempts;
+  const sched = examScheduleState(ex);
+
+  let statusBadge = `<span class="badge badge-open">Open</span>`;
+  if (done) statusBadge = `<span class="badge badge-done">Done</span>`;
+  if (sched.state === "upcoming") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-clock"></i> শীঘ্রই</span>`;
+  if (sched.state === "closed") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> শেষ</span>`;
+  if (locked) statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-ban"></i> সীমা শেষ</span>`;
+
+  let actionHtml = `<a class="btn btn-primary btn-sm" href="#/take?id=${ex.id}" style="margin-top:auto">${done ? "Retake / View" : "Start Exam"}</a>`;
+  if (sched.state === "upcoming") {
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">${sched.start ? formatDateTime(Timestamp.fromDate(sched.start)) + "-এ শুরু হবে" : "শীঘ্রই আসছে"}</button>`;
+  } else if (sched.state === "closed") {
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">এক্সাম বন্ধ হয়ে গেছে</button>`;
+  } else if (locked) {
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">সর্বোচ্চ চেষ্টা শেষ</button>`;
+  }
+
   return `
     <div class="exam-card">
       <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:flex-start">
         <h3>${escapeHtml(ex.title)}</h3>
-        ${done ? `<span class="badge badge-done">Done</span>` : `<span class="badge badge-open">Open</span>`}
+        ${statusBadge}
       </div>
       <div class="exam-meta">
         <span><i class="fa-solid fa-circle-question"></i> ${ex.questionCount || 0} Q</span>
         ${ex.duration ? `<span><i class="fa-solid fa-clock"></i> ${ex.duration} min</span>` : ""}
         ${ex.courseName ? `<span><i class="fa-solid fa-book"></i> ${escapeHtml(ex.courseName)}</span>` : ""}
+        ${ex.category ? `<span><i class="fa-solid fa-tag"></i> ${escapeHtml(ex.category)}</span>` : ""}
+        ${maxAttempts ? `<span><i class="fa-solid fa-rotate"></i> ${attemptsLeft}/${maxAttempts} বাকি</span>` : ""}
       </div>
       ${
         done
-          ? `<div class="muted" style="font-size:0.85rem">Last score: <strong>${formatScore(result.score)}/${result.total}</strong> (${result.percent}%)</div>`
+          ? `<div class="muted" style="font-size:0.85rem">সর্বোচ্চ স্কোর: <strong>${formatScore(best.score)}/${best.total}</strong> (${best.percent}%) · ${myAttempts.length} বার দেওয়া হয়েছে</div>`
           : ""
       }
-      <a class="btn btn-primary btn-sm" href="#/take?id=${ex.id}" style="margin-top:auto">
-        ${done ? "Retake / View" : "Start Exam"}
-      </a>
+      ${actionHtml}
     </div>`;
+}
+
+function bindExamCardEvents(root) {
+  /* room for future per-card JS bindings; buttons are plain links/disabled for now */
+  void root;
 }
 
 /* ---------- Take exam ---------- */
 let takeState = null;
+
+function stopTakeState() {
+  if (takeState?.timerInterval) clearInterval(takeState.timerInterval);
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  takeState = null;
+}
+
+function onVisibilityChange() {
+  if (!takeState || takeState.submitted) return;
+  if (document.hidden) {
+    takeState.tabSwitches = (takeState.tabSwitches || 0) + 1;
+  }
+}
 
 async function loadTakeExam(examId) {
   const view = document.getElementById("take-view");
@@ -290,6 +435,23 @@ async function loadTakeExam(examId) {
     }
     const exam = { id: examSnap.id, ...examSnap.data() };
 
+    if (exam.status === "draft") {
+      view.innerHTML = `<div class="empty-state"><p>এই এক্সাম এখনো প্রকাশিত হয়নি</p></div>`;
+      return;
+    }
+
+    const sched = examScheduleState(exam);
+    if (sched.state === "upcoming") {
+      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-clock"></i></div><p>এই এক্সাম এখনো শুরু হয়নি${
+        sched.start ? " — শুরু হবে " + sched.start.toLocaleString() : ""
+      }</p></div>`;
+      return;
+    }
+    if (sched.state === "closed") {
+      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-lock"></i></div><p>এই এক্সামের সময়সীমা শেষ হয়ে গেছে</p></div>`;
+      return;
+    }
+
     // Access check — only users who've purchased (or been granted access to) a paid
     // linked course may take its exam; free/unlinked exams stay open to everyone.
     if (exam.courseId) {
@@ -299,6 +461,21 @@ async function loadTakeExam(examId) {
         const course = coursesCache.find((c) => c.id === exam.courseId);
         view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-lock"></i></div><p>This exam is locked — it's only open to students who've purchased${course ? ` "${escapeHtml(course.title)}"` : " the linked course"}.</p>
           <a class="btn btn-primary" href="${COURSE_SITE_URL}" target="_blank">Go to Course Site</a></div>`;
+        return;
+      }
+    }
+
+    // Attempt-limit check
+    const maxAttempts = Number(exam.maxAttempts) || 0;
+    let attemptsSoFar = 0;
+    if (maxAttempts) {
+      const rSnap = await getDocs(
+        query(collection(db, "results"), where("uid", "==", currentUser.uid), where("examId", "==", examId))
+      );
+      attemptsSoFar = rSnap.size;
+      if (attemptsSoFar >= maxAttempts) {
+        view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-ban"></i></div><p>আপনার সর্বোচ্চ ${maxAttempts} বার চেষ্টার সীমা শেষ হয়ে গেছে।</p>
+          <a class="btn btn-outline" href="#/results">আমার রেজাল্ট দেখুন</a></div>`;
         return;
       }
     }
@@ -326,13 +503,18 @@ async function loadTakeExam(examId) {
       exam,
       questions,
       answers: {},
+      flagged: new Set(),
       locked: new Set(),
       index: 0,
       startedAt: Date.now(),
       timerInterval: null,
       remainingSec: (exam.duration || 0) * 60 || null,
+      tabSwitches: 0,
+      attemptNumberGuess: attemptsSoFar + 1,
+      submitted: false,
     };
 
+    document.addEventListener("visibilitychange", onVisibilityChange);
     renderTakeShell();
     if (takeState.remainingSec) startTimer();
     if (exam.showAll) renderAllQuestions();
@@ -343,13 +525,52 @@ async function loadTakeExam(examId) {
   }
 }
 
+function navigatorHtml() {
+  const { questions, index, answers, flagged } = takeState;
+  return `
+    <div class="q-navigator">
+      ${questions
+        .map((q, i) => {
+          const cls = [
+            "q-nav-btn",
+            answers[q.id] !== undefined ? "answered" : "",
+            flagged.has(q.id) ? "flagged" : "",
+            i === index && !takeState.exam.showAll ? "current" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return `<button type="button" class="${cls}" data-goto="${i}">${i + 1}</button>`;
+        })
+        .join("")}
+    </div>
+    <div class="q-nav-legend">
+      <span><i class="dot answered"></i> Answered</span>
+      <span><i class="dot flagged"></i> Flagged</span>
+      <span><i class="dot"></i> Unanswered</span>
+    </div>`;
+}
+
+function bindNavigator(root) {
+  root.querySelectorAll("[data-goto]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.goto);
+      if (takeState.exam.showAll) {
+        document.getElementById(`qcard-${i}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        takeState.index = i;
+        renderQuestion();
+      }
+    });
+  });
+}
+
 function renderTakeShell() {
   const { exam, questions, remainingSec } = takeState;
   document.getElementById("take-view").innerHTML = `
     <div class="exam-topbar">
       <div>
         <strong>${escapeHtml(exam.title)}</strong>
-        <div class="muted" style="font-size:0.82rem">${questions.length} questions</div>
+        <div class="muted" style="font-size:0.82rem">${questions.length} questions${exam.negativeMarking ? ` · −${exam.negativeMarking} per wrong` : ""}</div>
       </div>
       ${
         remainingSec != null
@@ -358,17 +579,20 @@ function renderTakeShell() {
       }
     </div>
     <div class="progress-track"><div class="progress-fill" id="q-progress-fill" style="width:0%"></div></div>
+    <div id="q-nav-wrap">${navigatorHtml()}</div>
     <div id="question-area"></div>
     ${
       exam.showAll
         ? `<div class="exam-nav"><button type="button" class="btn btn-primary" id="q-submit">Submit Exam</button></div>`
         : `<div class="exam-nav">
             <button type="button" class="btn btn-outline" id="q-prev">Previous</button>
+            <button type="button" class="btn btn-ghost" id="q-flag"><i class="fa-regular fa-flag"></i> Flag</button>
             <button type="button" class="btn btn-primary" id="q-next">Next</button>
             <button type="button" class="btn btn-accent hidden" id="q-submit">Submit Exam</button>
           </div>`
     }
   `;
+  bindNavigator(document.getElementById("q-nav-wrap"));
   document.getElementById("q-prev")?.addEventListener("click", () => {
     if (takeState.index > 0) {
       takeState.index--;
@@ -381,7 +605,22 @@ function renderTakeShell() {
       renderQuestion();
     }
   });
-  document.getElementById("q-submit")?.addEventListener("click", () => submitExam());
+  document.getElementById("q-flag")?.addEventListener("click", () => {
+    const q = takeState.questions[takeState.index];
+    if (takeState.flagged.has(q.id)) takeState.flagged.delete(q.id);
+    else takeState.flagged.add(q.id);
+    renderQuestion();
+  });
+  document.getElementById("q-submit")?.addEventListener("click", () => confirmSubmit());
+}
+
+function confirmSubmit() {
+  const { questions, answers } = takeState;
+  const unanswered = questions.length - Object.keys(answers).length;
+  const msg = unanswered
+    ? `আপনার ${unanswered}টি প্রশ্নের উত্তর দেওয়া হয়নি। এখনই সাবমিট করতে চান?`
+    : "এক্সাম সাবমিট করতে চান?";
+  if (confirm(msg)) submitExam();
 }
 
 function fmtTime(sec) {
@@ -394,6 +633,7 @@ function startTimer() {
   const el = document.getElementById("timer-text");
   const wrap = document.getElementById("exam-timer");
   takeState.timerInterval = setInterval(() => {
+    if (!takeState) return;
     takeState.remainingSec--;
     if (el) el.textContent = fmtTime(Math.max(0, takeState.remainingSec));
     if (takeState.remainingSec <= 60 && wrap) wrap.classList.add("danger");
@@ -442,17 +682,25 @@ function renderQuestion() {
   const { questions, index } = takeState;
   const q = questions[index];
   document.getElementById("q-progress-fill").style.width = `${((index + 1) / questions.length) * 100}%`;
+  const flagged = takeState.flagged.has(q.id);
   document.getElementById("question-area").innerHTML = `
     <div class="question-card paper">
-      <div class="q-index">Question ${index + 1} / ${questions.length}</div>
+      <div class="q-index">Question ${index + 1} / ${questions.length} ${flagged ? '<i class="fa-solid fa-flag" style="color:var(--warning);margin-left:0.4rem"></i>' : ""}</div>
       <h2>${escapeHtml(q.text)}</h2>
       ${renderOptionsHtml(q)}
     </div>`;
   bindOptionClicks();
+  const navWrap = document.getElementById("q-nav-wrap");
+  if (navWrap) {
+    navWrap.innerHTML = navigatorHtml();
+    bindNavigator(navWrap);
+  }
   const prev = document.getElementById("q-prev");
   const next = document.getElementById("q-next");
   const submit = document.getElementById("q-submit");
+  const flagBtn = document.getElementById("q-flag");
   if (prev) prev.disabled = index === 0;
+  if (flagBtn) flagBtn.innerHTML = flagged ? '<i class="fa-solid fa-flag"></i> Unflag' : '<i class="fa-regular fa-flag"></i> Flag';
   const last = index === questions.length - 1;
   next?.classList.toggle("hidden", last);
   submit?.classList.toggle("hidden", !last);
@@ -461,38 +709,66 @@ function renderQuestion() {
 function renderAllQuestions() {
   document.getElementById("q-progress-fill").style.width = "100%";
   document.getElementById("question-area").innerHTML = takeState.questions
-    .map(
-      (q, i) => `
-    <div class="question-card paper mb-16" style="margin-bottom:1rem">
-      <div class="q-index">Question ${i + 1} / ${takeState.questions.length}</div>
+    .map((q, i) => {
+      const flagged = takeState.flagged.has(q.id);
+      return `
+    <div class="question-card paper mb-16" style="margin-bottom:1rem" id="qcard-${i}">
+      <div class="q-index" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Question ${i + 1} / ${takeState.questions.length}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-flag-i="${i}">${flagged ? '<i class="fa-solid fa-flag" style="color:var(--warning)"></i>' : '<i class="fa-regular fa-flag"></i>'}</button>
+      </div>
       <h2>${escapeHtml(q.text)}</h2>
       ${renderOptionsHtml(q)}
-    </div>`
-    )
+    </div>`;
+    })
     .join("");
   bindOptionClicks();
+  document.querySelectorAll("[data-flag-i]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const q = takeState.questions[Number(btn.dataset.flagI)];
+      if (takeState.flagged.has(q.id)) takeState.flagged.delete(q.id);
+      else takeState.flagged.add(q.id);
+      renderAllQuestions();
+    });
+  });
+  const navWrap = document.getElementById("q-nav-wrap");
+  if (navWrap) {
+    navWrap.innerHTML = navigatorHtml();
+    bindNavigator(navWrap);
+  }
 }
 
 async function submitExam() {
-  if (!takeState) return;
+  if (!takeState || takeState.submitted) return;
+  takeState.submitted = true;
   if (takeState.timerInterval) {
     clearInterval(takeState.timerInterval);
     takeState.timerInterval = null;
   }
-  const { exam, questions, answers, startedAt } = takeState;
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  const { exam, questions, answers, startedAt, flagged, tabSwitches } = takeState;
   const neg = Number(exam.negativeMarking) || 0;
   let correct = 0,
     wrong = 0,
-    unanswered = 0;
+    unanswered = 0,
+    earnedMarks = 0,
+    totalMarks = 0;
   const review = [];
 
   questions.forEach((q) => {
+    const marks = Number(q.marks) > 0 ? Number(q.marks) : 1;
+    totalMarks += marks;
     const ans = answers[q.id];
     const isUn = ans === undefined || ans === null;
     const isOk = !isUn && ans === q.correctIndex;
     if (isUn) unanswered++;
-    else if (isOk) correct++;
-    else wrong++;
+    else if (isOk) {
+      correct++;
+      earnedMarks += marks;
+    } else {
+      wrong++;
+      earnedMarks -= neg;
+    }
     review.push({
       text: q.text,
       options: q.options,
@@ -500,26 +776,30 @@ async function submitExam() {
       selected: isUn ? null : ans,
       status: isUn ? "unanswered" : isOk ? "correct" : "wrong",
       explanation: q.explanation || "",
+      marks,
+      flagged: flagged.has(q.id),
     });
   });
 
-  const raw = correct - wrong * neg;
-  const score = Math.round(raw * 100) / 100;
-  const total = questions.length;
+  const score = Math.round(earnedMarks * 100) / 100;
+  const total = totalMarks || questions.length;
   const percent = total ? Math.max(0, Math.round((Math.max(0, score) / total) * 100)) : 0;
   const timeTakenSeconds = Math.round((Date.now() - startedAt) / 1000);
+  const passingPercent = Number(exam.passingPercent) || 0;
+  const passed = passingPercent ? percent >= passingPercent : null;
 
-  const resultId = `${currentUser.uid}_${exam.id}`;
-  let attemptNumber = 1;
+  let attemptNumber = takeState.attemptNumberGuess || 1;
   try {
-    const prev = await getDoc(doc(db, "results", resultId));
-    if (prev.exists()) attemptNumber = (prev.data().attemptNumber || 1) + 1;
+    const prevSnap = await getDocs(
+      query(collection(db, "results"), where("uid", "==", currentUser.uid), where("examId", "==", exam.id))
+    );
+    attemptNumber = prevSnap.size + 1;
   } catch {
-    /* ignore */
+    /* fall back to the guess made before the attempt started */
   }
 
   try {
-    await setDoc(doc(db, "results", resultId), {
+    await addDoc(collection(db, "results"), {
       uid: currentUser.uid,
       examId: exam.id,
       examTitle: exam.title,
@@ -533,6 +813,8 @@ async function submitExam() {
       negativeMarking: neg,
       timeTakenSeconds,
       attemptNumber,
+      passed,
+      tabSwitches: tabSwitches || 0,
       studentName: currentUser.displayName || userProfile?.displayName || currentUser.email,
       studentEmail: currentUser.email,
       submittedAt: serverTimestamp(),
@@ -543,16 +825,37 @@ async function submitExam() {
     toast("Could not save result — check Firestore rules", "error");
   }
 
-  showResultScreen({ score, total, percent, correct, wrong, unanswered, timeTakenSeconds, review, examTitle: exam.title, neg });
-  takeState = null;
+  showResultScreen({ score, total, percent, correct, wrong, unanswered, timeTakenSeconds, review, examTitle: exam.title, neg, passed, passingPercent });
+  stopTakeState();
 }
 
-function showResultScreen({ score, total, percent, correct, wrong, unanswered, timeTakenSeconds, review, examTitle, neg }) {
+function reviewListHtml(review) {
+  return `
+    <div class="review-list">
+      ${review
+        .map(
+          (r, i) => `
+        <div class="review-item ${r.status === "correct" ? "correct" : r.status === "wrong" ? "wrong" : ""}">
+          <div class="status">${r.status}${r.flagged ? ' <i class="fa-solid fa-flag" style="color:var(--warning)"></i>' : ""}${r.marks && r.marks !== 1 ? ` · ${r.marks} marks` : ""}</div>
+          <strong>Q${i + 1}. ${escapeHtml(r.text)}</strong>
+          <div class="muted" style="margin-top:0.4rem;font-size:0.88rem">
+            Your answer: ${r.selected == null ? "—" : escapeHtml(r.options[r.selected])}<br/>
+            Correct: ${escapeHtml(r.options[r.correctIndex])}
+          </div>
+          ${r.explanation && r.explanation.trim() ? `<div class="review-explanation"><i class="fa-solid fa-lightbulb"></i><span><b>Explanation:</b> ${escapeHtml(r.explanation)}</span></div>` : ""}
+        </div>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function showResultScreen({ score, total, percent, correct, wrong, unanswered, timeTakenSeconds, review, examTitle, neg, passed, passingPercent }) {
   document.getElementById("take-view").innerHTML = `
     <div class="result-hero">
       <div class="score-ring" style="--p:${percent}"><span>${percent}%</span></div>
       <h2>${escapeHtml(examTitle)}</h2>
       <p class="muted">Score: <strong>${formatScore(score)}</strong> / ${total}</p>
+      ${passed != null ? `<span class="badge ${passed ? "badge-open" : "badge-locked"}">${passed ? "Passed" : "Failed"} (pass mark ${passingPercent}%)</span>` : ""}
       <div class="result-stats">
         <div class="s"><div class="v">${correct}</div><div class="l">Correct</div></div>
         <div class="s"><div class="v">${wrong}</div><div class="l">Wrong</div></div>
@@ -566,27 +869,13 @@ function showResultScreen({ score, total, percent, correct, wrong, unanswered, t
       </div>
     </div>
     <h3 style="margin-bottom:0.75rem">Answer Review</h3>
-    <div class="review-list">
-      ${review
-        .map(
-          (r, i) => `
-        <div class="review-item ${r.status === "correct" ? "correct" : r.status === "wrong" ? "wrong" : ""}">
-          <div class="status">${r.status}</div>
-          <strong>Q${i + 1}. ${escapeHtml(r.text)}</strong>
-          <div class="muted" style="margin-top:0.4rem;font-size:0.88rem">
-            Your answer: ${r.selected == null ? "—" : escapeHtml(r.options[r.selected])}<br/>
-            Correct: ${escapeHtml(r.options[r.correctIndex])}
-          </div>
-          ${r.explanation && r.explanation.trim() ? `<div class="review-explanation"><i class="fa-solid fa-lightbulb"></i><span><b>Explanation:</b> ${escapeHtml(r.explanation)}</span></div>` : ""}
-        </div>`
-        )
-        .join("")}
-    </div>`;
+    ${reviewListHtml(review)}`;
 }
 
 /* ---------- My results ---------- */
 async function loadMyResults() {
   const el = document.getElementById("results-list");
+  const statsEl = document.getElementById("results-stats");
   el.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   try {
     const snap = await getDocs(query(collection(db, "results"), where("uid", "==", currentUser.uid)));
@@ -594,9 +883,25 @@ async function loadMyResults() {
       .map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
     if (!rows.length) {
+      if (statsEl) statsEl.innerHTML = "";
       el.innerHTML = `<div class="empty-state"><p>No results yet</p></div>`;
       return;
     }
+
+    if (statsEl) {
+      const avg = Math.round(rows.reduce((s, r) => s + (r.percent || 0), 0) / rows.length);
+      const best = Math.max(...rows.map((r) => r.percent || 0));
+      const distinctExams = new Set(rows.map((r) => r.examId)).size;
+      statsEl.innerHTML = [
+        { n: rows.length, l: "Total Attempts" },
+        { n: distinctExams, l: "Exams Attempted" },
+        { n: avg + "%", l: "Average" },
+        { n: best + "%", l: "Best" },
+      ]
+        .map((s) => `<div class="stat-card"><div class="n">${s.n}</div><div class="l">${s.l}</div></div>`)
+        .join("");
+    }
+
     el.innerHTML = `
       <div class="table-wrap"><table class="data-table">
         <thead><tr><th>Exam</th><th>Score</th><th>Attempt</th><th>Date</th><th></th></tr></thead>
@@ -606,15 +911,37 @@ async function loadMyResults() {
               (r) => `
             <tr>
               <td>${escapeHtml(r.examTitle || "Exam")}</td>
-              <td><strong>${formatScore(r.score)}/${r.total}</strong> (${r.percent}%)</td>
+              <td><strong>${formatScore(r.score)}/${r.total}</strong> (${r.percent}%)${r.passed === true ? ' <span class="badge badge-open">Pass</span>' : r.passed === false ? ' <span class="badge badge-locked">Fail</span>' : ""}</td>
               <td>#${r.attemptNumber || 1}</td>
               <td>${formatDateTime(r.submittedAt)}</td>
-              <td><a class="btn btn-ghost btn-sm" href="#/take?id=${r.examId}">Retake</a></td>
+              <td style="display:flex;gap:0.35rem">
+                <button class="btn btn-ghost btn-sm" data-view-review="${r.id}">Review</button>
+                <a class="btn btn-ghost btn-sm" href="#/take?id=${r.examId}">Retake</a>
+              </td>
             </tr>`
             )
             .join("")}
         </tbody>
       </table></div>`;
+
+    el.querySelectorAll("[data-view-review]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const r = rows.find((x) => x.id === btn.dataset.viewReview);
+        if (!r) return;
+        openModal(
+          `
+          <div class="modal-head">
+            <h3>${escapeHtml(r.examTitle || "Exam")} — Attempt #${r.attemptNumber || 1}</h3>
+            <button class="modal-close-btn" data-modal-close><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="modal-body">
+            <p class="muted" style="margin-top:-0.5rem">Score: <strong>${formatScore(r.score)}/${r.total}</strong> (${r.percent}%) · ${formatDateTime(r.submittedAt)}</p>
+            ${Array.isArray(r.review) && r.review.length ? reviewListHtml(r.review) : '<p class="muted">No saved review for this attempt.</p>'}
+          </div>`,
+          true
+        );
+      });
+    });
   } catch (e) {
     console.error(e);
     el.innerHTML = `<div class="empty-state"><p>Could not load results</p></div>`;
@@ -625,15 +952,17 @@ async function loadMyResults() {
 async function loadLeaderboard() {
   const select = document.getElementById("lb-exam-select");
   const list = document.getElementById("lb-list");
+  const search = document.getElementById("lb-search");
   try {
     const examsSnap = await getDocs(collection(db, "exams"));
-    const exams = examsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const exams = examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((ex) => ex.status !== "draft");
     const currentVal = select.value;
     select.innerHTML =
       `<option value="">All exams</option>` +
       exams.map((e) => `<option value="${e.id}">${escapeHtml(e.title)}</option>`).join("");
     select.value = currentVal;
     select.onchange = () => renderLb(select.value, list);
+    search?.addEventListener("input", debounce(() => renderLb(select.value, list), 200));
 
     await renderLb(select.value, list);
   } catch (e) {
@@ -659,7 +988,10 @@ async function renderLb(examId, list) {
       const prev = best.get(key);
       if (!prev || (r.percent || 0) > (prev.percent || 0)) best.set(key, { id: d.id, ...r });
     });
-    const rows = [...best.values()].sort((a, b) => (b.percent || 0) - (a.percent || 0)).slice(0, 50);
+    const searchQ = (document.getElementById("lb-search")?.value || "").trim().toLowerCase();
+    let rows = [...best.values()].sort((a, b) => (b.percent || 0) - (a.percent || 0));
+    if (searchQ) rows = rows.filter((r) => (r.studentName || r.studentEmail || "").toLowerCase().includes(searchQ));
+    rows = rows.slice(0, 50);
     if (!rows.length) {
       list.innerHTML = `<div class="empty-state"><p>No scores yet</p></div>`;
       return;
@@ -667,11 +999,12 @@ async function renderLb(examId, list) {
     list.innerHTML = rows
       .map((r, i) => {
         const rankClass = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
+        const isMe = r.uid === currentUser?.uid;
         return `
-        <div class="lb-row">
+        <div class="lb-row ${isMe ? "lb-row-me" : ""}">
           <div class="lb-rank ${rankClass}">${i + 1}</div>
           <div class="lb-name">
-            ${escapeHtml(r.studentName || r.studentEmail || "Student")}
+            ${escapeHtml(r.studentName || r.studentEmail || "Student")}${isMe ? ' <span class="badge badge-free">You</span>' : ""}
             ${!examId ? `<div class="muted" style="font-size:0.78rem">${escapeHtml(r.examTitle || "")}</div>` : ""}
           </div>
           <div class="lb-score">${r.percent}%</div>

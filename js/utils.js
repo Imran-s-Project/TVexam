@@ -134,3 +134,293 @@ export async function userHasCourseAccess(uid, courseId, enrolledCourses = []) {
     return enrolledCourses.includes(courseId);
   }
 }
+
+/* ---------------------------------------------------------------------- */
+/* Small generic helpers                                                  */
+/* ---------------------------------------------------------------------- */
+
+export function debounce(fn, wait = 250) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+export function downloadFile(filename, content, mime = "application/json") {
+  const blob = new Blob([content], { type: mime + ";charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+export function csvEscape(v) {
+  const s = v == null ? "" : String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+export function toCsv(rows, headers) {
+  const lines = [headers.map(csvEscape).join(",")];
+  rows.forEach((row) => lines.push(row.map(csvEscape).join(",")));
+  return lines.join("\n");
+}
+
+/* datetime-local <-> Date helpers (schedule fields) */
+export function toDateTimeLocalValue(d) {
+  if (!d) return "";
+  const dt = d.toDate ? d.toDate() : new Date(d);
+  if (isNaN(dt)) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
+export function fromDateTimeLocalValue(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Bulk question import parser                                            */
+/* Accepts:                                                                */
+/*  1) JSON array: [{ "text","options":[...],"correctIndex" or "answer",  */
+/*     "explanation","marks" }, ...]                                       */
+/*  2) CSV / TSV with header row (question, optionA..optionF, answer,      */
+/*     explanation, marks)                                                 */
+/*  3) Plain-text block format:                                            */
+/*     Q: question text                                                    */
+/*     A) option one                                                       */
+/*     B) option two                                                       */
+/*     C) option three                                                     */
+/*     D) option four                                                      */
+/*     Answer: B                                                           */
+/*     Explanation: optional text                                          */
+/*     Marks: 1                                                            */
+/*     (blocks separated by a blank line or a line of dashes)              */
+/* Returns { questions: [...], errors: [...] }                             */
+/* ---------------------------------------------------------------------- */
+
+function letterToIndex(letter) {
+  if (letter == null) return null;
+  const t = String(letter).trim().toUpperCase().replace(/[().]/g, "");
+  if (/^[A-F]$/.test(t)) return t.charCodeAt(0) - 65;
+  if (/^\d+$/.test(t)) return Number(t) - 1; // "1" -> option A
+  return null;
+}
+
+export function parseBulkQuestions(raw) {
+  const text = (raw || "").trim();
+  if (!text) return { questions: [], errors: ["ইনপুট খালি"] };
+
+  // 1) Try JSON
+  if (text.startsWith("[") || text.startsWith("{")) {
+    try {
+      const data = JSON.parse(text);
+      const arr = Array.isArray(data) ? data : data.questions;
+      if (Array.isArray(arr)) return parseJsonQuestions(arr);
+    } catch {
+      /* fall through to other formats */
+    }
+  }
+
+  // 2) Try CSV/TSV (header row contains "question")
+  const firstLine = text.split(/\r?\n/)[0] || "";
+  if (/question/i.test(firstLine) && (firstLine.includes(",") || firstLine.includes("\t"))) {
+    const parsed = parseCsvQuestions(text);
+    if (parsed.questions.length || parsed.errors.length) return parsed;
+  }
+
+  // 3) Plain-text block format
+  return parseTextQuestions(text);
+}
+
+function normalizeQ(q, i) {
+  const errors = [];
+  const optionsRaw = Array.isArray(q.options) ? q.options : [];
+  const options = optionsRaw.map((o) => String(o ?? "").trim()).filter((o) => o !== "");
+  if (options.length < 2) errors.push(`প্রশ্ন ${i + 1}: কমপক্ষে ২টি অপশন দরকার`);
+  let correctIndex = q.correctIndex;
+  if (correctIndex == null && q.answer != null) correctIndex = letterToIndex(q.answer);
+  if (typeof correctIndex !== "number" || isNaN(correctIndex)) correctIndex = 0;
+  if (correctIndex < 0 || correctIndex >= options.length) {
+    errors.push(`প্রশ্ন ${i + 1}: সঠিক উত্তর options-এর বাইরে — 0 ধরা হলো`);
+    correctIndex = 0;
+  }
+  const text = String(q.text || q.question || "").trim();
+  if (!text) errors.push(`প্রশ্ন ${i + 1}: প্রশ্নের লেখা খালি`);
+  const marks = Number(q.marks);
+  return {
+    question: {
+      text,
+      options,
+      correctIndex,
+      explanation: String(q.explanation || "").trim(),
+      marks: Number.isFinite(marks) && marks > 0 ? marks : 1,
+    },
+    errors,
+  };
+}
+
+function parseJsonQuestions(arr) {
+  const questions = [];
+  const errors = [];
+  arr.forEach((q, i) => {
+    const { question, errors: qErrors } = normalizeQ(q, i);
+    errors.push(...qErrors);
+    if (question.text) questions.push(question);
+  });
+  return { questions, errors };
+}
+
+function splitCsvLine(line, delim) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (c === '"') {
+        inQuotes = false;
+      } else {
+        cur += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === delim) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  out.push(cur);
+  return out.map((s) => s.trim());
+}
+
+function parseCsvQuestions(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const headers = splitCsvLine(lines[0], delim).map((h) => h.toLowerCase());
+  const idx = (name) => headers.indexOf(name);
+  const qIdx = idx("question") >= 0 ? idx("question") : idx("text");
+  const ansIdx = idx("answer") >= 0 ? idx("answer") : idx("correct");
+  const explIdx = idx("explanation");
+  const marksIdx = idx("marks");
+  const optIdxs = [];
+  for (const key of ["optiona", "optionb", "optionc", "optiond", "optione", "optionf"]) {
+    const j = idx(key);
+    if (j >= 0) optIdxs.push(j);
+  }
+  const questions = [];
+  const errors = [];
+  lines.slice(1).forEach((line, i) => {
+    const cols = splitCsvLine(line, delim);
+    const q = {
+      text: qIdx >= 0 ? cols[qIdx] : "",
+      options: optIdxs.map((j) => cols[j] || ""),
+      answer: ansIdx >= 0 ? cols[ansIdx] : "A",
+      explanation: explIdx >= 0 ? cols[explIdx] : "",
+      marks: marksIdx >= 0 ? cols[marksIdx] : 1,
+    };
+    const { question, errors: qErrors } = normalizeQ(q, i);
+    errors.push(...qErrors);
+    if (question.text) questions.push(question);
+  });
+  return { questions, errors };
+}
+
+function parseTextQuestions(text) {
+  const blocks = text
+    .split(/\n\s*\n|\n-{3,}\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const questions = [];
+  const errors = [];
+
+  blocks.forEach((block, bi) => {
+    const lines = block.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    let questionText = "";
+    const options = [];
+    let correctIndex = null;
+    let explanation = "";
+    let marks = 1;
+
+    lines.forEach((line) => {
+      const optMatch = line.match(/^\*?\(?([A-Fa-f])[).:]\s*(.*)$/);
+      const ansMatch = line.match(/^(answer|ans|correct)\s*[:\-]\s*(.+)$/i);
+      const explMatch = line.match(/^(explanation|explain|note)\s*[:\-]\s*(.+)$/i);
+      const marksMatch = line.match(/^(marks|points?)\s*[:\-]\s*(.+)$/i);
+      const qMatch = line.match(/^(q\d*|question)\s*[:\-]\s*(.+)$/i);
+
+      if (ansMatch) {
+        correctIndex = letterToIndex(ansMatch[2]);
+        if (correctIndex == null) {
+          // maybe they typed the full option text instead of a letter
+          const found = options.findIndex((o) => o.toLowerCase() === ansMatch[2].trim().toLowerCase());
+          if (found >= 0) correctIndex = found;
+        }
+      } else if (explMatch) {
+        explanation = explMatch[2].trim();
+      } else if (marksMatch) {
+        const m = Number(marksMatch[2]);
+        if (Number.isFinite(m) && m > 0) marks = m;
+      } else if (optMatch) {
+        const isStarred = line.trim().startsWith("*");
+        options.push(optMatch[2].replace(/\(correct\)\s*$/i, "").trim());
+        if (isStarred || /\(correct\)\s*$/i.test(line)) correctIndex = options.length - 1;
+      } else if (qMatch) {
+        questionText = qMatch[2].trim();
+      } else if (!questionText) {
+        questionText = line.replace(/^\d+[).]\s*/, "").trim();
+      }
+    });
+
+    if (!questionText && !options.length) return; // skip stray blank block
+
+    const { question, errors: qErrors } = normalizeQ(
+      { text: questionText, options, correctIndex: correctIndex ?? 0, explanation, marks },
+      bi
+    );
+    errors.push(...qErrors);
+    if (question.text) questions.push(question);
+  });
+
+  return { questions, errors };
+}
+
+/* Shared modal helper (used by app.js + admin.js) */
+export function openModal(html, large = false) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `<div class="modal ${large ? "modal-lg" : ""}">${html}</div>`;
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop || e.target.closest("[data-modal-close]")) backdrop.remove();
+  });
+  document.body.appendChild(backdrop);
+  return backdrop;
+}
+
+export const BULK_IMPORT_SAMPLE = `Q: বাংলাদেশের রাজধানীর নাম কী?
+A) চট্টগ্রাম
+B) ঢাকা
+C) খুলনা
+D) রাজশাহী
+Answer: B
+Explanation: ঢাকা বাংলাদেশের রাজধানী ও বৃহত্তম শহর।
+Marks: 1
+
+Q: 5 + 7 = ?
+A) 10
+B) 11
+C) 12
+D) 13
+Answer: C
+`;
