@@ -1118,7 +1118,7 @@ async function generateProfilePdf(p, history) {
   h += 22 + 12; // dob row
   h += socialEntries.length ? 14 + socialEntries.length * 16 + 8 : 0;
   h += 20 + 18; // divider + section title
-  h += history.length ? history.length * 22 + 10 : 22;
+  h += history.length ? history.length * 34 + 10 : 22;
   h += 10 + 16 + 20; // footer divider + text + bottom margin
 
   const doc = new jsPDF({ unit: "pt", format: [pageW, h] });
@@ -1215,17 +1215,20 @@ async function generateProfilePdf(p, history) {
 
   if (history.length) {
     history.forEach((hItem) => {
-      doc.setFont("helvetica", "normal");
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(40, 40, 55);
       doc.text(hItem.course?.title || "Course", margin, y);
-      doc.setTextColor(52, 201, 143);
-      doc.setFontSize(8.5);
-      doc.text("Unlocked", pageW - margin - 90, y);
-      doc.setTextColor(150, 150, 165);
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
-      doc.text(hItem.usedAt ? formatDateTime(hItem.usedAt) : "", pageW - margin, y, { align: "right" });
-      y += 22;
+      doc.setTextColor(52, 201, 143);
+      doc.text("Unlocked", pageW - margin, y, { align: "right" });
+      y += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 165);
+      doc.text(hItem.usedAt ? formatDateTime(hItem.usedAt) : "", margin, y);
+      y += 20;
     });
   } else {
     doc.setFont("helvetica", "normal");
