@@ -1,372 +1,188 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en" data-theme="dark">
 <head>
-<meta charset="UTF-8">
-<script src="js/theme.js"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TV Exam — পরীক্ষা দাও, নিজেকে যাচাই করো</title>
-<meta name="description" content="Tech Verse Exam Platform — যেকোনো কোর্সের এক্সাম দাও, ফলাফল দেখো, সার্টিফিকেট নাও।">
-<meta name="robots" content="index, follow">
-
-<!-- Open Graph -->
-<meta property="og:type"        content="website">
-<meta property="og:site_name"   content="TV Exam">
-<meta property="og:title"       content="TV Exam — পরীক্ষা দাও, নিজেকে যাচাই করো">
-<meta property="og:description" content="Tech Verse Exam Platform — যেকোনো কোর্সের এক্সাম দাও, ফলাফল দেখো।">
-<meta property="og:image"       content="https://REPLACE_EXAM_DOMAIN/assets/og-image.png">
-<meta property="og:url"         content="https://REPLACE_EXAM_DOMAIN/">
-<meta name="twitter:card"       content="summary_large_image">
-
-<!-- PWA -->
-<link rel="manifest"     href="manifest.json">
-<meta name="theme-color" content="#080C14">
-<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
-<link rel="apple-touch-icon"    href="assets/icons/apple-touch-icon.png">
-
-<!-- Preconnect -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-
-<!-- Fonts & Icons -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-
-<!-- Styles -->
-<link rel="stylesheet" href="css/base.css">
-<link rel="stylesheet" href="css/auth.css">
-<link rel="stylesheet" href="css/exam.css">
-
-<!-- PDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tech Verse Exam</title>
+  <meta name="description" content="Take exams linked to your Tech Verse courses. Same account, dedicated exam experience." />
+  <link rel="icon" href="assets/icons/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/exam-app.css" />
 </head>
 <body>
-
-<div id="toast-root"></div>
-
-<!-- ══════════ TOP NAV ══════════ -->
-<nav class="topnav">
-  <div class="container">
-    <a href="#/" class="brand">
-      <img src="assets/logo.png" alt="TV Exam" class="brand-logo">
-      <div>
-        <span class="brand-name">TV Exam</span>
-        <span class="brand-badge">Beta</span>
-      </div>
-    </a>
-
-    <div class="nav-links" id="nav-links">
-      <a href="#/"          class="nav-link" data-page="exams">  <i class="fa-solid fa-file-pen"></i>     Exams</a>
-      <a href="#/leaderboard" class="nav-link" data-page="leaderboard"><i class="fa-solid fa-trophy"></i>  Leaderboard</a>
-      <a href="#/profile"   class="nav-link" data-page="profile"><i class="fa-solid fa-user"></i>         Profile</a>
-      <a href="#/history"   class="nav-link" data-page="history"><i class="fa-solid fa-clock-rotate-left"></i> History</a>
-    </div>
-
-    <div class="flex items-center gap-8">
-      <!-- Course site link -->
-      <a href="https://REPLACE_COURSE_DOMAIN" target="_blank" rel="noopener"
-         class="btn btn-ghost btn-sm" title="Back to course site" style="font-size:.8rem">
-        <i class="fa-solid fa-graduation-cap"></i>
-        <span class="hidden" style="display:inline;font-size:.78rem">Course</span>
+  <nav class="topnav">
+    <div class="container">
+      <a href="#/" class="brand">
+        <img src="assets/logo.png" alt="" class="brand-logo" />
+        <span>Tech Verse</span>
+        <span class="brand-badge">Exam</span>
       </a>
-      <button class="theme-btn" id="theme-btn" aria-label="Toggle theme">
-        <i class="fa-solid fa-sun"></i>
-      </button>
-      <div class="nav-user" id="nav-user">
-        <a href="#/login" class="btn btn-primary btn-sm">Sign In</a>
+      <div class="nav-links" id="nav-links">
+        <a href="#/" data-nav="home">Dashboard</a>
+        <a href="#/exams" data-nav="exams">Exams</a>
+        <a href="#/results" data-nav="results">My Results</a>
+        <a href="#/leaderboard" data-nav="leaderboard">Leaderboard</a>
+        <a href="#/profile" data-nav="profile">Profile</a>
+        <a href="admin.html" class="nav-link-admin hidden" id="nav-admin-link"><i class="fa-solid fa-gear"></i> Admin</a>
       </div>
-      <button class="hamburger" id="hamburger" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
-  </div>
-</nav>
-
-<!-- ══════════ VIEWS ══════════ -->
-
-<!-- ── Exam list / take / result ── -->
-<div id="view-exams">
-
-  <!-- List -->
-  <div id="exam-list-view" class="page-wrap">
-    <div class="page-header">
-      <h1><i class="fa-solid fa-file-pen" style="color:var(--accent-blue-soft)"></i> Exams</h1>
-      <p>পরীক্ষা দাও, নিজেকে যাচাই করো</p>
-    </div>
-    <div class="exam-toolbar">
-      <div class="exam-search-wrap">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" class="exam-search" id="exam-search" placeholder="Search exams…">
+      <div class="nav-right">
+        <button type="button" class="theme-btn" id="theme-btn" title="Toggle theme"><i class="fa-solid fa-sun"></i></button>
+        <a class="btn btn-outline btn-sm" id="course-site-link" href="#" target="_blank" rel="noopener">Course Site</a>
+        <button type="button" class="user-chip hidden" id="user-chip">
+          <span class="avatar-fallback" id="nav-avatar">U</span>
+          <span id="nav-name">User</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm hidden" id="nav-login-btn">Sign In</button>
+        <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
       </div>
-      <select class="exam-filter-select" id="exam-filter">
-        <option value="all">All</option>
-        <option value="general">General</option>
-      </select>
     </div>
-    <div class="exam-grid" id="exam-grid">
-      <div class="loading-screen"><span class="spinner"></span> Loading…</div>
-    </div>
-  </div>
+  </nav>
 
-  <!-- Take exam -->
-  <div id="exam-take-view" class="hidden">
-    <div class="exam-sticky-bar">
-      <div class="exam-top-bar">
-        <div>
-          <div class="breadcrumb">
-            <a href="#/">Exams</a>
-            <i class="fa-solid fa-chevron-right"></i>
-            <span id="exam-take-title">Loading…</span>
+  <main id="app">
+    <!-- Dashboard -->
+    <section class="page" id="page-home">
+      <div class="container">
+        <div class="page-head">
+          <h1>Exam Dashboard</h1>
+          <p>Your available exams, recent scores, and quick actions.</p>
+        </div>
+        <div class="stat-grid" id="home-stats">
+          <div class="loading-screen"><span class="spinner"></span></div>
+        </div>
+        <div class="card" style="margin-bottom:1.25rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+            <h3 style="margin:0">Available Exams</h3>
+            <a href="#/exams" class="btn btn-ghost btn-sm">View all</a>
+          </div>
+          <div id="home-exams"><div class="loading-screen"><span class="spinner"></span></div></div>
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 0.75rem">Recent Results</h3>
+          <div id="home-results"><div class="loading-screen"><span class="spinner"></span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Exam list -->
+    <section class="page" id="page-exams">
+      <div class="container">
+        <div class="page-head">
+          <h1>All Exams</h1>
+          <p>Exams for free courses and courses you’ve unlocked.</p>
+        </div>
+        <div id="exams-grid" class="exam-grid">
+          <div class="loading-screen"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Take exam -->
+    <section class="page" id="page-take">
+      <div class="container exam-take-shell">
+        <div id="take-view"><div class="loading-screen"><span class="spinner"></span> Loading exam…</div></div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section class="page" id="page-results">
+      <div class="container">
+        <div class="page-head">
+          <h1>My Results</h1>
+          <p>History of every exam you’ve attempted.</p>
+        </div>
+        <div class="card">
+          <div id="results-list"><div class="loading-screen"><span class="spinner"></span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section class="page" id="page-leaderboard">
+      <div class="container">
+        <div class="page-head">
+          <h1>Leaderboard</h1>
+          <p>Top scores across exams (admin-visible full list on admin panel).</p>
+        </div>
+        <div class="field" style="max-width:320px">
+          <label>Filter by exam</label>
+          <select id="lb-exam-select"><option value="">All exams</option></select>
+        </div>
+        <div class="card" id="lb-list"><div class="loading-screen"><span class="spinner"></span></div></div>
+      </div>
+    </section>
+
+    <!-- Profile -->
+    <section class="page" id="page-profile">
+      <div class="container">
+        <div class="page-head">
+          <h1>Profile</h1>
+          <p>Same account as the Course site. Changes sync via shared Firebase Auth.</p>
+        </div>
+        <div class="card" id="profile-view"><div class="loading-screen"><span class="spinner"></span></div></div>
+      </div>
+    </section>
+
+    <!-- Auth pages -->
+    <section class="page" id="page-login">
+      <div class="auth-wrap">
+        <div class="auth-card">
+          <h1>Sign in to Exam</h1>
+          <p class="sub">Use the same email & password as the Course site.</p>
+          <form id="login-form">
+            <div class="field"><label>Email</label><input type="email" id="login-email" required autocomplete="email" /></div>
+            <div class="field"><label>Password</label><input type="password" id="login-password" required autocomplete="current-password" /></div>
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+          </form>
+          <div class="auth-footer">
+            <a href="#/forgot">Forgot password?</a> · <a href="#/signup">Create account</a>
           </div>
         </div>
-        <div class="exam-timer" id="exam-timer">
-          <i class="fa-solid fa-stopwatch"></i> 00:00
+      </div>
+    </section>
+
+    <section class="page" id="page-signup">
+      <div class="auth-wrap">
+        <div class="auth-card">
+          <h1>Create account</h1>
+          <p class="sub">One account works on both Course & Exam sites.</p>
+          <form id="signup-form">
+            <div class="field"><label>Full name</label><input type="text" id="signup-name" required autocomplete="name" /></div>
+            <div class="field"><label>Email</label><input type="email" id="signup-email" required autocomplete="email" /></div>
+            <div class="field"><label>Password</label><input type="password" id="signup-password" required minlength="6" autocomplete="new-password" /></div>
+            <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+          </form>
+          <div class="auth-footer">Already have an account? <a href="#/login">Sign in</a></div>
         </div>
       </div>
-      <div class="q-progress" id="q-progress">
-        <div class="q-progress-fill" id="q-progress-fill" style="width:0%"></div>
-      </div>
-    </div>
+    </section>
 
-    <div class="exam-take-wrap page-wrap" style="padding-top:0">
-      <div id="question-area"></div>
-      <div class="exam-nav-row" id="exam-nav-row">
-        <button class="btn btn-outline" id="q-prev"><i class="fa-solid fa-arrow-left"></i> Previous</button>
-        <span class="q-counter" id="q-counter"></span>
-        <button class="btn btn-primary" id="q-next">Next <i class="fa-solid fa-arrow-right"></i></button>
-        <button class="btn btn-cyan hidden" id="q-submit-btn">
-          <i class="fa-solid fa-paper-plane"></i> Submit Exam
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Result -->
-  <div id="exam-result-view" class="hidden page-wrap" style="padding-top:20px"></div>
-</div>
-
-<!-- ── Auth pages ── -->
-<div id="view-auth" class="hidden">
-
-  <!-- Login -->
-  <div id="auth-login" class="auth-wrap hidden">
-    <div class="auth-card card card-glow">
-      <div class="auth-head">
-        <img src="assets/logo.png" alt="" class="auth-logo">
-        <h1>Welcome back</h1>
-        <p>Sign in to access your exams</p>
-      </div>
-
-      <button class="btn-google" id="google-btn">
-        <img src="assets/google.svg" alt="Google">
-        Continue with Google
-      </button>
-
-      <div class="auth-divider">or</div>
-
-      <form class="auth-form" id="login-form">
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="login-email" placeholder="you@example.com" required autocomplete="email">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="login-pass" placeholder="••••••••" required autocomplete="current-password">
-        </div>
-        <div class="auth-forgot"><a href="#/forgot">Forgot password?</a></div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="login-btn">Sign In</button>
-      </form>
-
-      <div class="auth-switch">
-        Don't have an account? <a href="#/signup">Sign up</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- Signup -->
-  <div id="auth-signup" class="auth-wrap hidden">
-    <div class="auth-card card card-glow">
-      <div class="auth-head">
-        <img src="assets/logo.png" alt="" class="auth-logo">
-        <h1>Create account</h1>
-        <p>Join TV Exam and start testing yourself</p>
-      </div>
-
-      <button class="btn-google" id="google-btn-signup">
-        <img src="assets/google.svg" alt="Google">
-        Sign up with Google
-      </button>
-
-      <div class="auth-divider">or</div>
-
-      <form class="auth-form" id="signup-form">
-        <div class="field">
-          <label>Full Name</label>
-          <input type="text" id="signup-name" placeholder="Your name" required autocomplete="name">
-        </div>
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="signup-email" placeholder="you@example.com" required autocomplete="email">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="signup-pass" placeholder="Min 6 characters" required autocomplete="new-password" minlength="6">
-          <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block btn-lg" id="signup-btn">Create Account</button>
-      </form>
-
-      <div class="auth-switch">
-        Already have an account? <a href="#/login">Sign in</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- Forgot password -->
-  <div id="auth-forgot" class="auth-wrap hidden">
-    <div class="auth-card card">
-      <div class="auth-head">
-        <img src="assets/logo.png" alt="" class="auth-logo">
-        <h1>Reset password</h1>
-        <p>We'll send a reset link to your email</p>
-      </div>
-      <form class="auth-form" id="forgot-form">
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="forgot-email" placeholder="you@example.com" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" id="forgot-btn">Send Reset Link</button>
-      </form>
-      <div class="auth-switch mt-8"><a href="#/login"><i class="fa-solid fa-arrow-left"></i> Back to login</a></div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Profile ── -->
-<div id="view-profile" class="hidden">
-  <div class="page-wrap">
-    <div class="page-header">
-      <h1><i class="fa-solid fa-user" style="color:var(--accent-blue-soft)"></i> Profile</h1>
-      <p>তোমার account ও exam history</p>
-    </div>
-
-    <div class="tab-bar">
-      <button class="tab-btn active" data-tab="info">Account Info</button>
-      <button class="tab-btn" data-tab="history">Exam History</button>
-    </div>
-
-    <div id="tab-info">
-      <div id="profile-info">
-        <div class="loading-screen"><span class="spinner"></span></div>
-      </div>
-    </div>
-
-    <div id="tab-history" class="hidden">
-      <div id="my-history-list">
-        <div class="loading-screen"><span class="spinner"></span></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── History standalone ── -->
-<div id="view-history" class="hidden">
-  <div class="page-wrap">
-    <div class="page-header">
-      <h1 id="page-title"><i class="fa-solid fa-clock-rotate-left" style="color:var(--accent-blue-soft)"></i> My Exam History</h1>
-      <p>তুমি এখন পর্যন্ত যতগুলো exam দিয়েছ</p>
-    </div>
-    <div id="history-list">
-      <div class="loading-screen"><span class="spinner"></span></div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Leaderboard ── -->
-<div id="view-leaderboard" class="hidden">
-  <div class="page-wrap">
-    <div class="page-header">
-      <h1><i class="fa-solid fa-trophy" style="color:var(--accent-amber)"></i> Leaderboard</h1>
-      <p>সেরা পারফর্মার কে?</p>
-    </div>
-    <div class="card" style="padding:16px 20px;margin-bottom:20px">
-      <div class="flex gap-12" style="flex-wrap:wrap;align-items:flex-end">
-        <div class="field" style="margin:0;flex:1;min-width:200px">
-          <label>Filter by Exam</label>
-          <select id="lb-exam-select" class="exam-filter-select" style="width:100%">
-            <option value="">All Exams</option>
-          </select>
+    <section class="page" id="page-forgot">
+      <div class="auth-wrap">
+        <div class="auth-card">
+          <h1>Reset password</h1>
+          <p class="sub">We’ll email you a reset link (same Auth as Course site).</p>
+          <form id="forgot-form">
+            <div class="field"><label>Email</label><input type="email" id="forgot-email" required /></div>
+            <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+          </form>
+          <div class="auth-footer"><a href="#/login">Back to sign in</a></div>
         </div>
       </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      Tech Verse Exam · Linked with <a id="footer-course-link" href="#" target="_blank" rel="noopener">Course Site</a>
     </div>
-    <div class="card" style="padding:0 20px">
-      <div id="leaderboard-list">
-        <div class="loading-screen"><span class="spinner"></span></div>
-      </div>
-    </div>
-  </div>
-</div>
+  </footer>
 
-<!-- ── 404 ── -->
-<div id="view-404" class="hidden">
-  <div class="page-wrap text-center" style="padding-top:80px">
-    <div style="font-size:4rem;margin-bottom:16px">🔍</div>
-    <h1 style="font-size:2rem;margin-bottom:8px">Page not found</h1>
-    <p style="color:var(--text-muted);margin-bottom:24px">এই page টা নেই।</p>
-    <a href="#/" class="btn btn-primary">Go to Exams</a>
-  </div>
-</div>
+  <div id="toast-root"></div>
 
-<!-- ══════════ FOOTER ══════════ -->
-<footer style="border-top:1px solid var(--border);padding:28px 20px;text-align:center;color:var(--text-muted);font-size:.82rem;margin-top:auto">
-  <div style="max-width:1160px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
-    <span>© <span id="footer-year"></span> TV Exam — Tech Verse Learning</span>
-    <div style="display:flex;gap:16px">
-      <a href="https://REPLACE_COURSE_DOMAIN" target="_blank" rel="noopener" style="color:var(--accent-blue-soft)">
-        <i class="fa-solid fa-graduation-cap"></i> Course Site
-      </a>
-      <a href="#/leaderboard" style="color:var(--text-muted)">Leaderboard</a>
-    </div>
-  </div>
-</footer>
-
-<script>document.getElementById("footer-year").textContent = new Date().getFullYear();</script>
-
-<!-- Password strength meter -->
-<script>
-document.addEventListener("input", e => {
-  if (e.target.id !== "signup-pass") return;
-  const v = e.target.value;
-  const fill = document.getElementById("strength-fill");
-  if (!fill) return;
-  const score = [/.{6,}/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(r => r.test(v)).length;
-  const colors = ["", "#EF4444", "#F59E0B", "#10B981", "#2563EB"];
-  fill.style.width  = (score * 25) + "%";
-  fill.style.background = colors[score] || "";
-});
-</script>
-
-<!-- Profile tabs -->
-<script>
-document.addEventListener("click", e => {
-  const btn = e.target.closest(".tab-btn");
-  if (!btn) return;
-  const bar = btn.closest(".tab-bar");
-  if (!bar) return;
-  bar.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  const tabId = btn.dataset.tab;
-  document.querySelectorAll("#tab-info, #tab-history").forEach(t => t.classList.add("hidden"));
-  document.getElementById(`tab-${tabId}`)?.classList.remove("hidden");
-});
-</script>
-
-<script type="module" src="js/app.js"></script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
-  }
-</script>
+  <script type="module" src="js/app.js"></script>
 </body>
 </html>
