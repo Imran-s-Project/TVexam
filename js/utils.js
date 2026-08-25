@@ -1,7 +1,7 @@
 // ==========================================================================
 // utils.js — TV Exam shared helpers
 // ==========================================================================
-import { auth, mainDb } from "./firebase-config.js";
+import { auth, mainDb, examDb } from "./firebase-config.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
@@ -111,14 +111,24 @@ export async function requireAuth() {
 
 export async function requireAdmin() {
   const user = await waitForAuth();
-  if (!user) { window.location.hash = "#/login"; return null; }
-  const snap = await getDoc(doc(mainDb, "users", user.uid));
-  if (!snap.exists() || snap.data().role !== "admin") {
-    window.location.hash = "#/";
+  if (!user) { window.location.href = "index.html#/login"; return null; }
+  // admin স্ট্যাটাস examDb (tv-exam) এর admins/{uid} collection এ থাকে —
+  // firestore.rules ও README এর সাথে মিলিয়ে, mainDb এর role field না
+  let isAdmin = false;
+  try {
+    const adminSnap = await getDoc(doc(examDb, "admins", user.uid));
+    isAdmin = adminSnap.exists();
+  } catch {
+    isAdmin = false;
+  }
+  if (!isAdmin) {
     toast("Admin access only", "error");
+    window.location.href = "index.html#/";
     return null;
   }
-  return { user, profile: snap.data() };
+  const profileSnap = await getDoc(doc(mainDb, "users", user.uid)).catch(() => null);
+  const profile = profileSnap?.exists() ? profileSnap.data() : { displayName: user.displayName, email: user.email };
+  return { user, profile };
 }
 
 // মেইন DB থেকে ইউজার প্রোফাইল পড়া
@@ -177,6 +187,7 @@ export function initNav(activePage = "") {
     const profile = await getUserProfile(user.uid).catch(() => null);
     const initial = (profile?.displayName || user.displayName || user.email || "U")[0].toUpperCase();
     const avatarSrc = profile?.photoURL || user.photoURL || "";
+    const isAdmin = await getDoc(doc(examDb, "admins", user.uid)).then(s => s.exists()).catch(() => false);
     navUser.innerHTML = `
       <div class="nav-avatar" id="nav-avatar-btn" title="Profile">
         ${avatarSrc ? `<img src="${escapeHtml(avatarSrc)}" alt="">` : escapeHtml(initial)}
@@ -185,7 +196,7 @@ export function initNav(activePage = "") {
         <div class="nav-dropdown-name">${escapeHtml(profile?.displayName || user.displayName || user.email || "")}</div>
         <a href="#/profile" class="nav-dropdown-item"><i class="fa-solid fa-user"></i> Profile</a>
         <a href="#/history" class="nav-dropdown-item"><i class="fa-solid fa-clock-rotate-left"></i> My Results</a>
-        ${profile?.role === "admin" ? `<a href="admin.html" class="nav-dropdown-item"><i class="fa-solid fa-shield-halved"></i> Admin Panel</a>` : ""}
+        ${isAdmin ? `<a href="admin.html" class="nav-dropdown-item"><i class="fa-solid fa-shield-halved"></i> Admin Panel</a>` : ""}
         <button class="nav-dropdown-item danger" id="signout-btn"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
       </div>
     `;
@@ -197,7 +208,8 @@ export function initNav(activePage = "") {
     document.getElementById("signout-btn")?.addEventListener("click", async () => {
       await signOut(auth);
       clearProfileCache();
-      window.location.hash = "#/login";
+      const onIndex = /(^|\/)index\.html$/.test(location.pathname) || location.pathname.endsWith("/") || location.pathname === "";
+      window.location.href = onIndex ? "#/login" : "index.html#/login";
     });
   });
 
