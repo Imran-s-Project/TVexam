@@ -42,6 +42,10 @@
           </div>
         </div>
         <div class="stat-grid" id="stat-grid"><div class="loading-screen"><span class="spinner"></span></div></div>
+        <div class="card" style="margin-bottom:1.25rem">
+          <h3 style="margin:0 0 0.75rem">Score distribution</h3>
+          <div id="score-distribution"></div>
+        </div>
         <div class="card">
           <h3 style="margin:0 0 0.75rem">Recent submissions</h3>
           <div id="recent-results"><div class="loading-screen"><span class="spinner"></span></div></div>
@@ -56,10 +60,21 @@
           </div>
           <button type="button" class="btn btn-primary" id="add-exam-btn"><i class="fa-solid fa-plus"></i> New Exam</button>
         </div>
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="exams-search" placeholder="Search by title, course, category…" />
+          </div>
+          <select id="exams-status-filter">
+            <option value="">All statuses</option>
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+        </div>
         <div class="card">
           <div class="table-wrap">
             <table class="data-table" id="exams-table">
-              <thead><tr><th>Title</th><th>Course</th><th>Questions</th><th>Duration</th><th></th></tr></thead>
+              <thead><tr><th>Title</th><th>Course</th><th>Questions</th><th>Duration</th><th>Status</th><th></th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -70,13 +85,20 @@
         <div class="admin-section-head">
           <div>
             <h2>All Results</h2>
-            <p class="muted">Every student attempt</p>
+            <p class="muted">Every student attempt — full history, not just latest</p>
+          </div>
+          <button type="button" class="btn btn-outline" id="results-export-btn"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+        </div>
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="results-search" placeholder="Search by student or exam…" />
           </div>
         </div>
         <div class="card">
           <div class="table-wrap">
             <table class="data-table" id="results-table">
-              <thead><tr><th>Student</th><th>Exam</th><th>Score</th><th>Attempt</th><th>Date</th></tr></thead>
+              <thead><tr><th>Student</th><th>Exam</th><th>Score</th><th>Attempt</th><th>Date</th><th></th></tr></thead>
               <tbody></tbody>
             </table>
           </div>

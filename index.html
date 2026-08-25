@@ -74,6 +74,25 @@
           <h1>All Exams</h1>
           <p>Exams for free courses and courses you’ve unlocked.</p>
         </div>
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="exam-search" placeholder="Search exam by name or category…" />
+          </div>
+          <select id="exam-filter-status">
+            <option value="">সব এক্সাম</option>
+            <option value="open">এখনো দেওয়া হয়নি</option>
+            <option value="done">দেওয়া হয়েছে</option>
+          </select>
+          <select id="exam-filter-category">
+            <option value="">সব ক্যাটাগরি</option>
+          </select>
+          <select id="exam-sort">
+            <option value="new">নতুন আগে</option>
+            <option value="az">নাম (A–Z)</option>
+            <option value="duration">সময় অনুযায়ী</option>
+          </select>
+        </div>
         <div id="exams-grid" class="exam-grid">
           <div class="loading-screen"><span class="spinner"></span></div>
         </div>
@@ -92,8 +111,9 @@
       <div class="container">
         <div class="page-head">
           <h1>My Results</h1>
-          <p>History of every exam you’ve attempted.</p>
+          <p>History of every exam you’ve attempted — every attempt is saved, not just the latest.</p>
         </div>
+        <div class="stat-grid" id="results-stats"></div>
         <div class="card">
           <div id="results-list"><div class="loading-screen"><span class="spinner"></span></div></div>
         </div>
@@ -105,10 +125,13 @@
       <div class="container">
         <div class="page-head">
           <h1>Leaderboard</h1>
-          <p>Top scores across exams (admin-visible full list on admin panel).</p>
+          <p>Top scores across exams (best attempt per student).</p>
         </div>
-        <div class="field" style="max-width:320px">
-          <label>Filter by exam</label>
+        <div class="toolbar">
+          <div class="toolbar-search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="lb-search" placeholder="Search student name…" />
+          </div>
           <select id="lb-exam-select"><option value="">All exams</option></select>
         </div>
         <div class="card" id="lb-list"><div class="loading-screen"><span class="spinner"></span></div></div>
