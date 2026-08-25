@@ -1,0 +1,52 @@
+/* ── Auth pages (login / signup) ── */
+.auth-wrap {
+  min-height: calc(100vh - 64px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px;
+}
+.auth-card {
+  width: 100%; max-width: 420px;
+  padding: 36px 32px;
+  position: relative;
+}
+/* Blue glow behind auth card */
+.auth-card::before {
+  content: "";
+  position: absolute; inset: -40px; z-index: -1;
+  background: radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.18), transparent 65%);
+  pointer-events: none;
+}
+.auth-head { text-align: center; margin-bottom: 32px; }
+.auth-logo { width: 48px; height: 48px; margin: 0 auto 16px; }
+.auth-head h1 { font-size: 1.7rem; margin-bottom: 6px; }
+.auth-head p { color: var(--text-muted); font-size: 0.92rem; }
+
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 8px 0; color: var(--text-muted); font-size: 0.82rem;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
+.auth-switch { text-align: center; margin-top: 20px; font-size: 0.9rem; color: var(--text-muted); }
+.auth-switch a { color: var(--accent-blue-soft); font-weight: 600; }
+.auth-switch a:hover { text-decoration: underline; }
+.auth-forgot { text-align: right; }
+.auth-forgot a { font-size: 0.82rem; color: var(--accent-blue-soft); font-weight: 600; }
+
+/* Google / OAuth button */
+.btn-google {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; background: var(--bg-elevated-2); color: var(--text-primary);
+  font-weight: 600; padding: 11px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border-strong); cursor: pointer; font-size: 0.92rem;
+  transition: all .15s; font-family: var(--font-display);
+}
+.btn-google:hover { background: var(--bg-card); border-color: var(--border-accent); color: var(--accent-blue-soft); }
+.btn-google img { width: 18px; height: 18px; }
+
+/* Password strength bar */
+.strength-bar { height: 3px; border-radius: 2px; background: var(--border); margin-top: 6px; overflow: hidden; }
+.strength-fill { height: 100%; border-radius: 2px; transition: width .3s, background .3s; }
