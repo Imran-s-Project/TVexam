@@ -14,7 +14,8 @@ import {
 import {
   doc, setDoc, getDoc, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { toast, navigate, waitForAuth } from "./utils.js";
+import { toast, waitForAuth } from "./utils.js";
+import { navigate } from "./router.js";
 
 // ── Login page ────────────────────────────────────────────────────────────
 export async function initLoginPage() {
