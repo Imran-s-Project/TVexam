@@ -20,10 +20,18 @@
       <a href="index.html" class="admin-topbar-brand"><img src="assets/logo.png" alt="" /> Exam Control</a>
       <div style="display:flex;align-items:center;gap:0.5rem">
         <button type="button" class="theme-btn" id="theme-btn" style="width:34px;height:34px"><i class="fa-solid fa-sun"></i></button>
+        <button type="button" class="theme-btn" id="admin-signout-btn-mobile" style="width:34px;height:34px" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i></button>
         <button type="button" class="admin-sidebar-toggle" id="admin-sidebar-toggle" aria-label="Menu"><i class="fa-solid fa-bars"></i></button>
       </div>
     </div>
     <aside class="admin-sidebar" id="admin-sidebar">
+      <div class="admin-user-card">
+        <span class="avatar-fallback" id="admin-nav-avatar">A</span>
+        <div class="admin-user-card-text">
+          <span class="admin-greet-msg" data-greet-msg>স্বাগতম</span>
+          <span class="admin-greet-time" data-greet-time>--:--</span>
+        </div>
+      </div>
       <nav>
         <button class="admin-nav-item active" data-section="overview"><i class="fa-solid fa-chart-pie"></i> Overview</button>
         <button class="admin-nav-item" data-section="exams"><i class="fa-solid fa-file-pen"></i> Exams</button>
@@ -33,6 +41,7 @@
       <div style="margin-top:1.5rem;padding:0 0.5rem;display:flex;flex-direction:column;gap:0.4rem">
         <a href="index.html" class="btn btn-outline btn-sm btn-block">← Exam Site</a>
         <a href="#" id="course-admin-link" class="btn btn-ghost btn-sm btn-block" target="_blank">Course Admin</a>
+        <button type="button" class="btn btn-ghost btn-sm btn-block" id="admin-signout-btn" style="color:var(--danger)"><i class="fa-solid fa-right-from-bracket"></i> Sign Out</button>
       </div>
     </aside>
 
