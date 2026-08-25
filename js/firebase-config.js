@@ -21,7 +21,7 @@ import {
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 // ── ১. মেইন কোর্স প্রজেক্ট (Auth + ইউজার/কোর্স ডেটা) ─────────────────
-const MAIN_CONFIG = {
+const firebaseConfig = {
   apiKey:            "AIzaSyA7Bzpu_RPI8wqIkSqjmh4aXFK_ARXC88g",
   authDomain:        "tv-course.firebaseapp.com",
   projectId:         "tv-course",
@@ -33,7 +33,7 @@ const MAIN_CONFIG = {
 // ── ২. এক্সাম প্রজেক্ট (এক্সাম ডেটা) ────────────────────────────────────
 // ⚠️ নিচের config টা Firebase Console → tv-exam project → Project settings
 //    → Your apps → SDK setup → Config থেকে copy করে বসাও
-const EXAM_CONFIG = {
+const firebaseConfig = {
   apiKey:            "AIzaSyCJyClYm7m4IFSJtuyjvNHhY4iHnCXJhKQ",
   authDomain:        "tvexam.firebaseapp.com",
   projectId:         "tvexam",
