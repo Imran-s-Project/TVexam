@@ -34,16 +34,15 @@ const MAIN_CONFIG = {
 // ⚠️ নিচের config টা Firebase Console → tv-exam project → Project settings
 //    → Your apps → SDK setup → Config থেকে copy করে বসাও
 const EXAM_CONFIG = {
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCJyClYm7m4IFSJtuyjvNHhY4iHnCXJhKQ",
-  authDomain: "tvexam.firebaseapp.com",
-  projectId: "tvexam",
-  storageBucket: "tvexam.firebasestorage.app",
+  apiKey:            "AIzaSyCJyClYm7m4IFSJtuyjvNHhY4iHnCXJhKQ",
+  authDomain:        "tvexam.firebaseapp.com",
+  projectId:         "tvexam",
+  storageBucket:     "tvexam.firebasestorage.app",
   messagingSenderId: "568880836905",
-  appId: "1:568880836905:web:3bac39c8d6c113c6d3c738",
-  measurementId: "G-JZY90RTTE0"
+  appId:             "1:568880836905:web:3bac39c8d6c113c6d3c738",
+  measurementId:     "G-JZY90RTTE0",
 };
+
 // ── Apps initialize ───────────────────────────────────────────────────────
 const mainApp = initializeApp(MAIN_CONFIG, "main");
 const examApp = initializeApp(EXAM_CONFIG, "exam");
