@@ -15,23 +15,14 @@
 </head>
 <body>
   <nav class="topnav">
-    <div class="container">
+    <div class="topnav-bar">
       <a href="#/" class="brand">
         <img src="assets/logo.png" alt="" class="brand-logo" />
         <span>Tech Verse</span>
         <span class="brand-badge">Exam</span>
       </a>
 
-      <div class="nav-greet" id="nav-greet-desktop">
-        <span class="nav-greet-time" data-greet-time>--:--</span>
-        <span class="nav-greet-msg" data-greet-msg>স্বাগতম</span>
-      </div>
-
       <div class="nav-links" id="nav-links">
-        <div class="nav-greet nav-greet-mobile" data-greet-mobile>
-          <span class="nav-greet-time" data-greet-time>--:--</span>
-          <span class="nav-greet-msg" data-greet-msg>স্বাগতম</span>
-        </div>
         <a href="#/" data-nav="home">Dashboard</a>
         <a href="#/exams" data-nav="exams">Exams</a>
         <a href="#/results" data-nav="results">My Results</a>
@@ -42,6 +33,10 @@
       </div>
 
       <div class="nav-right">
+        <div class="nav-greet" id="nav-greet">
+          <span class="nav-greet-time" data-greet-time>--:--</span>
+          <span class="nav-greet-msg" data-greet-msg>স্বাগতম</span>
+        </div>
         <button type="button" class="theme-btn" id="theme-btn" title="Toggle theme"><i class="fa-solid fa-sun"></i></button>
         <a class="btn btn-outline btn-sm" id="course-site-link" href="#" target="_blank" rel="noopener">Course Site</a>
         <div class="user-menu" id="user-menu">
@@ -58,6 +53,7 @@
         </div>
         <button type="button" class="btn btn-primary btn-sm hidden" id="nav-login-btn">Sign In</button>
         <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+
       </div>
     </div>
   </nav>
