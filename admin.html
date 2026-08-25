@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<script src="js/theme.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — TV Exam</title>
+<meta name="robots" content="noindex, nofollow">
+
+<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/admin.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div id="toast-root"></div>
+
+<!-- ══ TOP NAV ══ -->
+<nav class="topnav">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <img src="assets/logo.png" alt="TV Exam" class="brand-logo">
+      <div>
+        <span class="brand-name">TV Exam</span>
+        <span class="brand-badge">Admin</span>
+      </div>
+    </a>
+    <div class="flex items-center gap-8" style="margin-left:auto">
+      <span id="admin-user-name" style="font-size:.85rem;color:var(--text-muted)"></span>
+      <button class="theme-btn" id="theme-btn"><i class="fa-solid fa-sun"></i></button>
+      <div class="nav-user" id="nav-user"></div>
+    </div>
+  </div>
+</nav>
+
+<!-- Gate (shown while verifying admin) -->
+<div id="admin-gate" class="loading-screen" style="min-height:calc(100vh - 64px)">
+  <span class="spinner"></span>
+  <span style="color:var(--text-muted)">Verifying admin access…</span>
+</div>
+
+<!-- ══ ADMIN SHELL ══ -->
+<div class="admin-layout hidden" id="admin-shell">
+
+  <!-- Mobile top bar -->
+  <div class="admin-mobile-bar">
+    <button class="admin-drawer-btn" id="admin-drawer-open"><i class="fa-solid fa-bars"></i></button>
+    <span class="section-name" id="admin-mobile-section-name">Overview</span>
+  </div>
+
+  <div class="admin-sidebar-backdrop" id="admin-sidebar-backdrop"></div>
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="admin-sidebar" id="admin-sidebar">
+    <div class="admin-sidebar-title">
+      <i class="fa-solid fa-shield-halved" style="color:var(--accent-blue-soft)"></i>
+      Control Center
+    </div>
+
+    <button class="admin-nav-item active" data-section="overview" data-label="Overview">
+      <i class="fa-solid fa-chart-pie"></i> Overview
+    </button>
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-section-label">Exam Management</div>
+      <button class="admin-nav-item" data-section="exams" data-label="Exams">
+        <i class="fa-solid fa-file-pen"></i> Exams
+      </button>
+      <button class="admin-nav-item" data-section="results" data-label="Results">
+        <i class="fa-solid fa-chart-bar"></i> Results
+      </button>
+      <button class="admin-nav-item" data-section="leaderboard" data-label="Leaderboard">
+        <i class="fa-solid fa-trophy"></i> Leaderboard
+      </button>
+    </div>
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-section-label">Users</div>
+      <button class="admin-nav-item" data-section="users" data-label="Users">
+        <i class="fa-solid fa-users"></i> Users
+      </button>
+    </div>
+
+    <div class="admin-sidebar-section">
+      <div class="admin-sidebar-section-label">Config</div>
+      <button class="admin-nav-item" data-section="settings" data-label="Settings">
+        <i class="fa-solid fa-sliders"></i> Settings
+      </button>
+    </div>
+
+    <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--border)">
+      <a href="index.html" class="admin-nav-item" style="color:var(--text-muted)">
+        <i class="fa-solid fa-arrow-left"></i> Back to Exam Site
+      </a>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main class="admin-main">
+
+    <!-- ── Overview ── -->
+    <section class="admin-section active" id="section-overview">
+      <div class="section-header">
+        <div>
+          <h2>Overview</h2>
+          <p style="color:var(--text-muted);font-size:.9rem;margin-top:4px">Exam platform stats at a glance</p>
+        </div>
+      </div>
+
+      <div class="stat-grid" id="overview-stat-grid">
+        <div class="loading-screen"><span class="spinner"></span></div>
+      </div>
+
+      <div class="card mt-24">
+        <h3 style="font-size:1rem;margin-bottom:16px">
+          <i class="fa-solid fa-clock-rotate-left" style="color:var(--accent-blue-soft)"></i>
+          Recent Exam Attempts
+        </h3>
+        <div class="table-wrap">
+          <table class="data-table" id="recent-results-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Exam</th>
+                <th>Score</th>
+                <th>Result</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="5"><div class="loading-screen"><span class="spinner"></span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Exams ── -->
+    <section class="admin-section" id="section-exams">
+      <div class="section-header">
+        <div>
+          <h2>Exam Management</h2>
+          <p style="color:var(--text-muted);font-size:.9rem;margin-top:4px">Exam তৈরি করো, প্রশ্ন যোগ করো, schedule করো</p>
+        </div>
+        <button class="btn btn-primary" id="add-exam-btn">
+          <i class="fa-solid fa-plus"></i> New Exam
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="exams-table">
+            <thead>
+              <tr>
+                <th>Exam Title</th>
+                <th>Course</th>
+                <th>Questions</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6"><div class="loading-screen"><span class="spinner"></span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Results ── -->
+    <section class="admin-section" id="section-results">
+      <div class="section-header">
+        <div>
+          <h2>Exam Results</h2>
+          <p style="color:var(--text-muted);font-size:.9rem;margin-top:4px">সব student এর সব result</p>
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px 20px;margin-bottom:16px">
+        <div class="exam-search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" class="exam-search" id="results-search" placeholder="Search by name or exam…">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="results-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Exam</th>
+                <th>Score %</th>
+                <th>Marks</th>
+                <th>Result</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="6"><div class="loading-screen"><span class="spinner"></span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Leaderboard ── -->
+    <section class="admin-section" id="section-leaderboard">
+      <div class="section-header">
+        <h2>Leaderboard</h2>
+      </div>
+
+      <div class="card" style="padding:16px 20px;margin-bottom:16px">
+        <div class="field" style="margin:0;max-width:300px">
+          <label>Filter by Exam</label>
+          <select id="lb-exam-select" class="exam-filter-select" style="width:100%">
+            <option value="">All Exams</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0 20px">
+        <div id="leaderboard-list">
+          <div class="loading-screen"><span class="spinner"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Users ── -->
+    <section class="admin-section" id="section-users">
+      <div class="section-header">
+        <h2>Users</h2>
+      </div>
+
+      <div class="card" style="padding:16px 20px;margin-bottom:16px">
+        <p style="font-size:.85rem;color:var(--text-muted)">
+          <i class="fa-solid fa-circle-info" style="color:var(--accent-blue-soft)"></i>
+          Users মেইন কোর্স সাইটের Firebase থেকে লোড হচ্ছে (read-only)।
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="users-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="4"><div class="loading-screen"><span class="spinner"></span></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Settings ── -->
+    <section class="admin-section" id="section-settings">
+      <div class="section-header">
+        <h2>Settings</h2>
+      </div>
+
+      <div class="card" style="max-width:560px">
+        <form id="settings-form">
+          <div class="form-grid">
+            <div class="field">
+              <label>Site Name</label>
+              <input type="text" id="s-site-name" value="TV Exam">
+            </div>
+            <div class="field">
+              <label>Default Pass Mark (%)</label>
+              <input type="number" id="s-pass-mark" value="60" min="1" max="100">
+            </div>
+            <div class="field span-2">
+              <label>Course Site URL</label>
+              <input type="url" id="s-course-url" placeholder="https://tv-course.vercel.app">
+            </div>
+          </div>
+          <div class="mt-16">
+            <button type="submit" class="btn btn-primary" id="settings-save-btn">
+              <i class="fa-solid fa-floppy-disk"></i> Save Settings
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card mt-16" style="max-width:560px">
+        <h3 style="font-size:1rem;margin-bottom:12px">Firebase Configuration</h3>
+        <p style="font-size:.85rem;color:var(--text-muted);line-height:1.6">
+          Firebase config পরিবর্তন করতে <code style="background:var(--bg-elevated-2);padding:2px 6px;border-radius:4px">js/firebase-config.js</code> ফাইল edit করো।
+          <br><br>
+          <b style="color:var(--accent-amber-soft)">⚠️ মনে রেখো:</b> <code>EXAM_CONFIG</code> তে তোমার <code>tv-exam</code> Firebase project এর config বসাতে হবে।
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Exam Add/Edit Modal -->
+<div class="modal-backdrop hidden" id="exam-modal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-header">
+      <h3 id="exam-modal-title">Add New Exam</h3>
+      <button class="modal-close" data-close-modal="exam-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="exam-form">
+      <div class="form-grid">
+        <div class="field span-2">
+          <label>Exam Title *</label>
+          <input type="text" id="ef-title" placeholder="e.g. JavaScript Fundamentals — Chapter 1" required>
+        </div>
+        <div class="field span-2">
+          <label>Description</label>
+          <textarea id="ef-desc" placeholder="Brief description of this exam…" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label>Course ID <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="text" id="ef-course-id" placeholder="Leave blank for general exam">
+        </div>
+        <div class="field">
+          <label>Course Name <span style="color:var(--text-muted);font-weight:400">(shown on card)</span></label>
+          <input type="text" id="ef-course-name" placeholder="e.g. JavaScript Fundamentals">
+        </div>
+        <div class="field">
+          <label>Duration (minutes) *</label>
+          <input type="number" id="ef-duration" value="10" min="1" max="300" required>
+        </div>
+        <div class="field">
+          <label>Pass Mark (%)</label>
+          <input type="number" id="ef-pass-mark" value="60" min="1" max="100">
+        </div>
+        <div class="field">
+          <label>Max Attempts <span style="color:var(--text-muted);font-weight:400">(0 = unlimited)</span></label>
+          <input type="number" id="ef-max-att" value="0" min="0">
+        </div>
+        <div class="field">
+          <label>Negative Marking <span style="color:var(--text-muted);font-weight:400">(0 = none)</span></label>
+          <input type="number" id="ef-neg-mark" value="0" min="0" step="0.25">
+        </div>
+        <div class="field">
+          <label>Question Layout</label>
+          <select id="ef-layout">
+            <option value="one">One by one</option>
+            <option value="all">All at once</option>
+          </select>
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-top:auto">
+            <input type="checkbox" id="ef-shuffle" checked>
+            Shuffle questions & options
+          </label>
+        </div>
+        <div class="field">
+          <label>Publish At <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="datetime-local" id="ef-publish-at">
+        </div>
+        <div class="field">
+          <label>Closes At <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+          <input type="datetime-local" id="ef-closes-at">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close-modal="exam-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="exam-save-btn">
+          <i class="fa-solid fa-floppy-disk"></i> Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Questions Manager Modal -->
+<div class="modal-backdrop hidden" id="questions-modal">
+  <div class="modal-box" style="max-width:700px;max-height:90vh;overflow-y:auto">
+    <div class="modal-header" style="position:sticky;top:0;background:var(--bg-elevated);z-index:1;padding-bottom:16px">
+      <div>
+        <h3>Questions</h3>
+        <div style="font-size:.85rem;color:var(--text-muted);margin-top:2px" id="qm-exam-title"></div>
+      </div>
+      <button class="modal-close" data-close-modal="questions-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="question-builder" class="question-builder"></div>
+  </div>
+</div>
+
+<!-- Question Form Modal -->
+<div class="modal-backdrop hidden" id="question-form-modal">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="qf-title">New Question</h3>
+      <button class="modal-close" data-close-modal="question-form-modal"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <form id="question-form">
+      <div class="field" style="margin-bottom:16px">
+        <label>Question Text *</label>
+        <textarea id="qf-text" rows="3" placeholder="Enter your question here…" required></textarea>
+      </div>
+
+      <div style="font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.06em">
+        Options <span style="color:var(--accent-green-soft);font-weight:400">— correct টির radio select করো</span>
+      </div>
+      <div id="qf-options"></div>
+
+      <div class="field" style="margin-top:16px">
+        <label>Explanation <span style="color:var(--text-muted);font-weight:400">(optional, shown after answer)</span></label>
+        <textarea id="qf-explanation" rows="2" placeholder="Why is this the correct answer?"></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" data-close-modal="question-form-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="qf-save-btn">
+          <i class="fa-solid fa-floppy-disk"></i> Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>
