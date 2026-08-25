@@ -8,6 +8,22 @@ import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com
 export const COURSE_SITE_URL = "https://tvcourse.web.app"; // change to your course site URL
 export const SUPPORT_EMAIL = "tv.support.info@gmail.com";
 
+/** Time-of-day greeting (Bengali) + current time string, used by the header. */
+export function getGreeting(name) {
+  const h = new Date().getHours();
+  let msg;
+  if (h >= 4 && h < 12) msg = "শুভ সকাল";
+  else if (h >= 12 && h < 16) msg = "শুভ দুপুর";
+  else if (h >= 16 && h < 18) msg = "শুভ বিকেল";
+  else if (h >= 18 && h < 21) msg = "শুভ সন্ধ্যা";
+  else msg = "শুভ রাত্রি";
+  return name ? `${msg}, ${name}` : msg;
+}
+
+export function getClockTime() {
+  return new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 export function toast(message, type = "info") {
   let root = document.getElementById("toast-root");
   if (!root) {

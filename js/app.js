@@ -33,6 +33,8 @@ import {
   COURSE_SITE_URL,
   debounce,
   openModal,
+  getGreeting,
+  getClockTime,
 } from "./utils.js";
 import { bindAuthForms } from "./auth.js";
 import { initTheme } from "./theme.js";
@@ -57,9 +59,35 @@ document.getElementById("nav-login-btn")?.addEventListener("click", () => {
   location.hash = "#/login";
 });
 
-document.getElementById("user-chip")?.addEventListener("click", () => {
+/* ---------- Header greeting clock + user dropdown ---------- */
+function updateGreeting() {
+  const name = currentUser ? currentUser.displayName || userProfile?.displayName || currentUser.email?.split("@")[0] || "" : "";
+  const msg = getGreeting(name);
+  document.querySelectorAll("[data-greet-msg]").forEach((el) => (el.textContent = msg));
+  document.querySelectorAll("[data-greet-time]").forEach((el) => (el.textContent = getClockTime()));
+}
+updateGreeting();
+setInterval(updateGreeting, 30000);
+
+const userChipBtn = document.getElementById("user-chip");
+const userDropdown = document.getElementById("user-dropdown");
+userChipBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
   if (!currentUser) return;
-  location.hash = "#/profile";
+  const isOpen = !userDropdown.classList.contains("hidden");
+  userDropdown.classList.toggle("hidden", isOpen);
+  userChipBtn.setAttribute("aria-expanded", String(!isOpen));
+});
+document.addEventListener("click", (e) => {
+  if (!userDropdown || userDropdown.classList.contains("hidden")) return;
+  if (!e.target.closest("#user-menu")) {
+    userDropdown.classList.add("hidden");
+    userChipBtn?.setAttribute("aria-expanded", "false");
+  }
+});
+document.getElementById("user-signout-btn")?.addEventListener("click", () => {
+  userDropdown?.classList.add("hidden");
+  signOutUser();
 });
 
 onAuthStateChanged(auth, async (user) => {
@@ -78,7 +106,9 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("user-chip")?.classList.add("hidden");
     document.getElementById("nav-login-btn")?.classList.remove("hidden");
     document.getElementById("nav-admin-link")?.classList.add("hidden");
+    userDropdown?.classList.add("hidden");
   }
+  updateGreeting();
   route();
 });
 
@@ -1041,6 +1071,182 @@ async function renderLb(examId, list) {
   }
 }
 
+/* ---------- Profile PDF export (jsPDF, content-fit page, logo watermark) ---------- */
+async function loadImageAsDataUrl(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function generateProfilePdf(p, history) {
+  if (!window.jspdf) {
+    toast("PDF লাইব্রেরি লোড হয়নি", "error");
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const logoDataUrl = await loadImageAsDataUrl("assets/logo.png").catch(() => null);
+
+  const name = p?.displayName || currentUser.displayName || currentUser.email || "User";
+  const email = currentUser.email || "";
+  const phone = p?.phone || "—";
+  const address = p?.address || "—";
+  const dob = p?.dob || "—";
+  const social = p?.social || {};
+  const socialEntries = Object.entries(social).filter(([, v]) => v);
+
+  const pageW = 480;
+  const margin = 40;
+  const contentW = pageW - margin * 2;
+
+  // Use a throwaway doc purely to measure wrapped text so we can size the
+  // real page to fit the content exactly (no big blank PDF pages).
+  const measure = new jsPDF({ unit: "pt", format: [pageW, 2000] });
+  measure.setFont("helvetica", "normal");
+  measure.setFontSize(10);
+  const addressLines = measure.splitTextToSize(address, contentW);
+
+  let h = margin; // running height estimate
+  h += 40 + 26; // header + divider gap
+  h += 42; // avatar/name row
+  h += 22 + 12; // phone row
+  h += 22 + addressLines.length * 13 + 8; // address row
+  h += 22 + 12; // dob row
+  h += socialEntries.length ? 14 + socialEntries.length * 16 + 8 : 0;
+  h += 20 + 18; // divider + section title
+  h += history.length ? history.length * 22 + 10 : 22;
+  h += 10 + 16 + 20; // footer divider + text + bottom margin
+
+  const doc = new jsPDF({ unit: "pt", format: [pageW, h] });
+
+  if (logoDataUrl) {
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({ opacity: 0.06 }));
+    const wm = pageW * 0.75;
+    doc.addImage(logoDataUrl, "PNG", (pageW - wm) / 2, (h - wm) / 2, wm, wm, undefined, undefined, 20);
+    doc.restoreGraphicsState();
+  }
+
+  let y = margin;
+  if (logoDataUrl) doc.addImage(logoDataUrl, "PNG", margin, y - 8, 28, 28);
+  const titleX = margin + (logoDataUrl ? 36 : 0);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(30, 30, 45);
+  doc.text("Tech Verse Exam", titleX, y + 6);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(120, 120, 135);
+  doc.text("Student Profile Report", titleX, y + 18);
+  doc.setFontSize(8);
+  doc.text(new Date().toLocaleDateString(), pageW - margin, y + 6, { align: "right" });
+  y += 34;
+  doc.setDrawColor(224, 224, 234);
+  doc.line(margin, y, pageW - margin, y);
+  y += 26;
+
+  doc.setFillColor(124, 92, 255);
+  doc.circle(margin + 16, y + 4, 16, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text(name.charAt(0).toUpperCase(), margin + 16, y + 8, { align: "center" });
+
+  doc.setTextColor(20, 20, 30);
+  doc.setFontSize(12);
+  doc.text(name, margin + 42, y);
+  doc.setTextColor(120, 120, 135);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(email, margin + 42, y + 15);
+  if (p?.isAdmin) {
+    doc.setTextColor(242, 169, 78);
+    doc.setFontSize(9);
+    doc.text("Admin", pageW - margin, y, { align: "right" });
+  }
+  y += 40;
+
+  function row(label, value) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(140, 140, 155);
+    doc.text(label.toUpperCase(), margin, y);
+    y += 13;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 40);
+    const lines = doc.splitTextToSize(value || "—", contentW);
+    doc.text(lines, margin, y);
+    y += lines.length * 13 + 9;
+  }
+  row("Phone", phone);
+  row("Address", address);
+  row("Date of Birth", dob);
+
+  if (socialEntries.length) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(140, 140, 155);
+    doc.text("SOCIAL", margin, y);
+    y += 14;
+    socialEntries.forEach(([k, v]) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(60, 60, 140);
+      doc.text(`${k.charAt(0).toUpperCase() + k.slice(1)}: ${v}`, margin, y);
+      y += 16;
+    });
+    y += 8;
+  }
+
+  doc.setDrawColor(230, 230, 238);
+  doc.line(margin, y, pageW - margin, y);
+  y += 20;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(30, 30, 40);
+  doc.text("Courses & Purchase History", margin, y);
+  y += 18;
+
+  if (history.length) {
+    history.forEach((hItem) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(40, 40, 55);
+      doc.text(hItem.course?.title || "Course", margin, y);
+      doc.setTextColor(52, 201, 143);
+      doc.setFontSize(8.5);
+      doc.text("Unlocked", pageW - margin - 90, y);
+      doc.setTextColor(150, 150, 165);
+      doc.setFontSize(8);
+      doc.text(hItem.usedAt ? formatDateTime(hItem.usedAt) : "", pageW - margin, y, { align: "right" });
+      y += 22;
+    });
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(140, 140, 155);
+    doc.text("No courses unlocked yet.", margin, y);
+    y += 22;
+  }
+
+  y += 8;
+  doc.setDrawColor(230, 230, 238);
+  doc.line(margin, y, pageW - margin, y);
+  y += 16;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(160, 160, 175);
+  doc.text(`Generated on ${new Date().toLocaleString()} · Tech Verse Exam`, pageW / 2, y, { align: "center" });
+
+  doc.save(`${name.replace(/\s+/g, "-")}-profile.pdf`);
+}
+
 /* ---------- Profile ---------- */
 async function loadProfile() {
   const el = document.getElementById("profile-view");
@@ -1110,9 +1316,20 @@ async function loadProfile() {
     </div>`;
 
   document.getElementById("pf-logout")?.addEventListener("click", () => signOutUser());
-  document.getElementById("pf-export-pdf")?.addEventListener("click", () => {
-    document.title = `Profile — ${p?.displayName || currentUser.displayName || currentUser.email || "TechVerse"}`;
-    window.print();
+  document.getElementById("pf-export-pdf")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Generating…`;
+    try {
+      await generateProfilePdf(p, history);
+    } catch (err) {
+      console.error(err);
+      toast("PDF তৈরি করা যায়নি", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   });
   document.getElementById("profile-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();

@@ -3,7 +3,7 @@
 // Course management stays on the Course site admin.
 // ==========================================================================
 import { auth, db } from "./firebase-config.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   collection,
   doc,
@@ -33,6 +33,8 @@ import {
   parseBulkQuestions,
   BULK_IMPORT_SAMPLE,
   openModal,
+  getGreeting,
+  getClockTime,
 } from "./utils.js";
 import { initTheme } from "./theme.js";
 
@@ -42,6 +44,21 @@ let allResults = [];
 
 initTheme();
 document.getElementById("course-admin-link").href = COURSE_SITE_URL.replace(/\/?$/, "/") + "admin.html";
+
+function updateAdminGreeting(name) {
+  const msg = getGreeting(name);
+  document.querySelectorAll("[data-greet-msg]").forEach((el) => (el.textContent = msg));
+  document.querySelectorAll("[data-greet-time]").forEach((el) => (el.textContent = getClockTime()));
+}
+setInterval(() => updateAdminGreeting(window.__adminName), 30000);
+
+function bindSignOut() {
+  const doSignOut = () => {
+    if (confirm("Sign out?")) signOut(auth).then(() => (location.href = "index.html#/login"));
+  };
+  document.getElementById("admin-signout-btn")?.addEventListener("click", doSignOut);
+  document.getElementById("admin-signout-btn-mobile")?.addEventListener("click", doSignOut);
+}
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
@@ -58,10 +75,16 @@ onAuthStateChanged(auth, async (user) => {
       </div>`;
     return;
   }
+  const name = user.displayName || profile?.displayName || user.email?.split("@")[0] || "Admin";
+  window.__adminName = name;
+  const avatarEl = document.getElementById("admin-nav-avatar");
+  if (avatarEl) avatarEl.textContent = name.charAt(0).toUpperCase();
+  updateAdminGreeting(name);
   document.getElementById("admin-gate").classList.add("hidden");
   document.getElementById("admin-shell").classList.remove("hidden");
   bindSidebar();
   bindToolbars();
+  bindSignOut();
   await refreshCourses();
   await Promise.all([loadOverview(), loadExamsTable(), loadResultsTable(), loadAdminLeaderboard()]);
 });
