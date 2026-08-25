@@ -59,7 +59,7 @@ document.getElementById("nav-login-btn")?.addEventListener("click", () => {
 
 document.getElementById("user-chip")?.addEventListener("click", () => {
   if (!currentUser) return;
-  if (confirm("Sign out?")) signOutUser();
+  location.hash = "#/profile";
 });
 
 onAuthStateChanged(auth, async (user) => {
