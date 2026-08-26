@@ -9,6 +9,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/admin.css" />
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
   <div id="admin-gate" class="admin-gate">
@@ -28,12 +31,13 @@
       <div class="admin-user-card">
         <span class="avatar-fallback" id="admin-nav-avatar">A</span>
         <div class="admin-user-card-text">
-          <span class="admin-greet-msg" data-greet-msg>স্বাগতম</span>
+          <span class="admin-greet-msg" data-greet-msg>Welcome</span>
           <span class="admin-greet-time" data-greet-time>--:--</span>
         </div>
       </div>
       <nav>
         <button class="admin-nav-item active" data-section="overview"><i class="fa-solid fa-chart-pie"></i> Overview</button>
+        <button class="admin-nav-item" data-section="analytics"><i class="fa-solid fa-chart-line"></i> Analytics</button>
         <button class="admin-nav-item" data-section="exams"><i class="fa-solid fa-file-pen"></i> Exams</button>
         <button class="admin-nav-item" data-section="results"><i class="fa-solid fa-trophy"></i> Results</button>
         <button class="admin-nav-item" data-section="leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>
@@ -46,6 +50,8 @@
     </aside>
 
     <main class="admin-main">
+
+      <!-- ===== OVERVIEW ===== -->
       <section class="admin-section active" id="section-overview">
         <div class="admin-section-head">
           <div>
@@ -64,6 +70,56 @@
         </div>
       </section>
 
+      <!-- ===== ANALYTICS ===== -->
+      <section class="admin-section" id="section-analytics">
+        <div class="admin-section-head">
+          <div>
+            <h2>Analytics</h2>
+            <p class="muted">Exam performance insights & question difficulty</p>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <select id="analytics-exam-filter" class="btn btn-outline btn-sm" style="padding:0.45rem 0.75rem;font-size:0.85rem">
+              <option value="">All Exams</option>
+            </select>
+            <button class="btn btn-outline btn-sm" id="analytics-refresh-btn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+          </div>
+        </div>
+
+        <!-- KPI row -->
+        <div class="stat-grid" id="analytics-kpi-grid"><div class="loading-screen"><span class="spinner"></span></div></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem" class="analytics-twin-grid">
+          <!-- Daily attempts trend -->
+          <div class="card">
+            <h3 style="margin:0 0 0.85rem;font-size:1rem"><i class="fa-solid fa-chart-line" style="color:var(--primary-hover)"></i> Daily Attempts (30 days)</h3>
+            <div id="analytics-daily-chart" class="mini-chart-wrap"></div>
+          </div>
+          <!-- Pass/fail donut -->
+          <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <h3 style="margin:0 0 0.85rem;font-size:1rem;align-self:flex-start"><i class="fa-solid fa-circle-half-stroke" style="color:var(--accent)"></i> Pass vs Fail</h3>
+            <div id="analytics-passfail" style="width:100%"></div>
+          </div>
+        </div>
+
+        <!-- Question difficulty -->
+        <div class="card" style="margin-bottom:1.25rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">
+            <h3 style="margin:0;font-size:1rem"><i class="fa-solid fa-brain" style="color:var(--warning)"></i> Question Difficulty Analysis</h3>
+            <select id="analytics-qd-exam" style="padding:0.4rem 0.65rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-size:0.82rem">
+              <option value="">Select exam…</option>
+            </select>
+          </div>
+          <div id="analytics-qdifficulty"><p class="muted" style="font-size:0.88rem">Select an exam above to see per-question stats.</p></div>
+        </div>
+
+        <!-- Top performers -->
+        <div class="card">
+          <h3 style="margin:0 0 0.75rem;font-size:1rem"><i class="fa-solid fa-medal" style="color:#f59e0b"></i> Top Performers</h3>
+          <div id="analytics-top-performers"></div>
+        </div>
+      </section>
+
+      <!-- ===== EXAMS ===== -->
       <section class="admin-section" id="section-exams">
         <div class="admin-section-head">
           <div>
@@ -93,6 +149,7 @@
         </div>
       </section>
 
+      <!-- ===== RESULTS ===== -->
       <section class="admin-section" id="section-results">
         <div class="admin-section-head">
           <div>
@@ -117,19 +174,40 @@
         </div>
       </section>
 
+      <!-- ===== LEADERBOARD ===== -->
       <section class="admin-section" id="section-leaderboard">
         <div class="admin-section-head">
           <div>
             <h2>Leaderboard</h2>
-            <p class="muted">Best scores per exam</p>
+            <p class="muted">Tap any student to see full history · PDF export available</p>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" id="lb-export-all-pdf-btn"><i class="fa-solid fa-file-pdf"></i> Export Full PDF</button>
           </div>
         </div>
-        <div class="field" style="max-width:320px">
-          <label>Exam</label>
-          <select id="admin-lb-exam"></select>
+
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:flex-end">
+          <div class="field" style="margin:0;min-width:220px;flex:1">
+            <label style="font-size:0.8rem">Filter by Exam</label>
+            <select id="admin-lb-exam"></select>
+          </div>
+          <div class="toolbar-search" style="flex:1;min-width:200px">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="admin-lb-search" placeholder="Search student…" />
+          </div>
         </div>
-        <div class="card" id="admin-lb-list"></div>
+
+        <!-- LB stats summary -->
+        <div class="stat-grid" id="lb-summary-grid" style="margin-bottom:1.25rem"></div>
+
+        <!-- LB list (slim rows) -->
+        <div class="card" style="padding:0;overflow:hidden" id="admin-lb-list-wrap">
+          <div id="admin-lb-list"><div class="loading-screen"><span class="spinner"></span></div></div>
+          <!-- pagination -->
+          <div id="lb-pagination" style="display:flex;gap:0.5rem;justify-content:center;padding:1rem;border-top:1px solid var(--border);flex-wrap:wrap"></div>
+        </div>
       </section>
+
     </main>
   </div>
 
