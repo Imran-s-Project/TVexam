@@ -209,7 +209,7 @@
   position: relative;
 }
 .exam-tab-btn[data-tab="bulk"]::after {
-  content: "দ্রুত";
+  content: "Fast";
   font-size: 0.62rem;
   font-weight: 700;
   background: var(--accent-soft);
@@ -320,4 +320,211 @@
   .admin-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ========================================================================
+   NEW: Analytics section
+   ======================================================================== */
+.analytics-twin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+@media (max-width: 780px) {
+  .analytics-twin-grid { grid-template-columns: 1fr; }
+}
+.mini-chart-wrap {
+  min-height: 100px;
+}
+.analytics-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+.analytics-legend-row span:first-child {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.analytics-legend-row strong {
+  margin-left: auto;
+  font-family: var(--mono);
+}
+
+/* ========================================================================
+   NEW: Leaderboard — slim rows
+   ======================================================================== */
+.lb-slim-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.lb-slim-row:last-child { border-bottom: none; }
+.lb-slim-clickable {
+  cursor: pointer;
+}
+.lb-slim-clickable:hover {
+  background: var(--bg-soft);
+}
+.lb-slim-rank {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.lb-slim-rank.gold { background: #fef3c7; color: #b45309; }
+.lb-slim-rank.silver { background: #e2e8f0; color: #475569; }
+.lb-slim-rank.bronze { background: #ffedd5; color: #c2410c; }
+
+.lb-slim-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  font-weight: 800;
+  font-size: 0.82rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.lb-slim-info {
+  flex: 1;
+  min-width: 0;
+}
+.lb-slim-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-slim-email {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-slim-chips {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.lb-chip {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+.lb-chip-attempts { background: var(--primary-soft); color: var(--primary-hover); }
+.lb-chip-correct  { background: #dcfce7; color: #166534; }
+.lb-chip-time     { background: var(--accent-soft); color: var(--accent); }
+.lb-chip-days     { background: #f0fdf4; color: #15803d; }
+
+[data-theme="dark"] .lb-chip-correct { background: #14532d55; color: #86efac; }
+[data-theme="dark"] .lb-chip-days    { background: #14532d44; color: #86efac; }
+
+.lb-slim-score {
+  font-weight: 900;
+  font-family: var(--mono);
+  font-size: 1rem;
+  color: var(--primary-hover);
+  min-width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.lb-slim-score.gold   { color: #b45309; }
+.lb-slim-score.silver { color: #475569; }
+.lb-slim-score.bronze { color: #c2410c; }
+
+@media (max-width: 640px) {
+  .lb-slim-chips { display: none; }
+  .lb-slim-row { padding: 0.6rem 0.75rem; }
+}
+
+/* ========================================================================
+   NEW: Student Detail Modal
+   ======================================================================== */
+.lb-detail-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  font-weight: 800;
+  font-size: 1.1rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.lb-detail-rank-badge {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.lb-detail-rank-badge.rank-gold   { background: #fef3c7; color: #b45309; }
+.lb-detail-rank-badge.rank-silver { background: #e2e8f0; color: #475569; }
+.lb-detail-rank-badge.rank-bronze { background: #ffedd5; color: #c2410c; }
+.lb-detail-rank-badge.rank-normal { background: var(--bg-soft); color: var(--text-muted); }
+
+.lb-detail-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+@media (max-width: 480px) {
+  .lb-detail-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.lb-detail-kpi {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+}
+.lb-detail-kpi .n {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--text);
+  line-height: 1.2;
+}
+.lb-detail-kpi .l {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  margin-top: 0.1rem;
+}
+
+/* ========================================================================
+   NEW: Timer pulse animation
+   ======================================================================== */
+@keyframes timer-pulse {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.08); }
+  60%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+.timer-pulse {
+  animation: timer-pulse 0.5s ease;
 }

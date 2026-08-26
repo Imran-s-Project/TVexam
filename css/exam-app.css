@@ -542,3 +542,134 @@
   background: var(--primary-soft);
   border-radius: 10px;
 }
+
+/* ========================================================================
+   NEW: Public leaderboard slim rows
+   ======================================================================== */
+.lb-slim-row-pub {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+.lb-slim-row-pub:last-child { border-bottom: none; }
+.lb-row-me-pub {
+  background: var(--primary-soft) !important;
+  border-left: 3px solid var(--primary-hover);
+}
+.lb-slim-rank-pub {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.82rem;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.lb-slim-rank-pub.gold   { background: #fef3c7; color: #b45309; }
+.lb-slim-rank-pub.silver { background: #e2e8f0; color: #475569; }
+.lb-slim-rank-pub.bronze { background: #ffedd5; color: #c2410c; }
+.lb-slim-av-pub {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  font-weight: 800;
+  font-size: 0.78rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.lb-slim-info-pub { flex: 1; min-width: 0; }
+.lb-slim-name-pub {
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-slim-sub-pub {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lb-slim-score-pub {
+  font-weight: 900;
+  font-family: var(--mono);
+  font-size: 1rem;
+  color: var(--primary-hover);
+  flex-shrink: 0;
+}
+.lb-slim-score-pub.gold   { color: #b45309; }
+.lb-slim-score-pub.silver { color: #475569; }
+.lb-slim-score-pub.bronze { color: #c2410c; }
+
+.lb-my-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text);
+  flex-wrap: wrap;
+}
+.lb-my-strip strong { color: var(--primary-hover); }
+
+.lb-pagination-pub {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: center;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+/* ========================================================================
+   NEW: Share result modal
+   ======================================================================== */
+.share-text-box {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text);
+  user-select: all;
+}
+
+/* ========================================================================
+   NEW: My Results analytics
+   ======================================================================== */
+.my-results-trend {
+  margin-bottom: 1rem;
+}
+
+/* ========================================================================
+   NEW: Timer warning pulse
+   ======================================================================== */
+@keyframes timer-pulse {
+  0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  50%  { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+.timer-pulse { animation: timer-pulse 0.6s ease; }
+
+/* ========================================================================
+   NEW: Better empty states
+   ======================================================================== */
+.empty-state .icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  opacity: 0.35;
+}
