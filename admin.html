@@ -88,28 +88,39 @@
         <!-- KPI row -->
         <div class="stat-grid" id="analytics-kpi-grid"><div class="loading-screen"><span class="spinner"></span></div></div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem" class="analytics-twin-grid">
-          <!-- Daily attempts trend -->
-          <div class="card">
-            <h3 style="margin:0 0 0.85rem;font-size:1rem"><i class="fa-solid fa-chart-line" style="color:var(--primary-hover)"></i> Daily Attempts (30 days)</h3>
-            <div id="analytics-daily-chart" class="mini-chart-wrap"></div>
+        <!-- Charts — swipeable so 2 charts never squeeze/break the page on small screens -->
+        <div class="analytics-scroll-outer">
+          <button type="button" class="analytics-scroll-nav prev" id="analytics-scroll-prev" aria-label="Scroll left"><i class="fa-solid fa-chevron-left"></i></button>
+          <div class="analytics-scroll-row" id="analytics-scroll-row">
+            <div class="card analytics-scroll-card">
+              <h3><i class="fa-solid fa-chart-line" style="color:var(--primary-hover)"></i> Daily Attempts (30 days)</h3>
+              <div id="analytics-daily-chart" class="mini-chart-wrap"></div>
+            </div>
+            <div class="card analytics-scroll-card">
+              <h3><i class="fa-solid fa-circle-half-stroke" style="color:var(--accent)"></i> Pass vs Fail</h3>
+              <div id="analytics-passfail"></div>
+            </div>
           </div>
-          <!-- Pass/fail donut -->
-          <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
-            <h3 style="margin:0 0 0.85rem;font-size:1rem;align-self:flex-start"><i class="fa-solid fa-circle-half-stroke" style="color:var(--accent)"></i> Pass vs Fail</h3>
-            <div id="analytics-passfail" style="width:100%"></div>
-          </div>
+          <button type="button" class="analytics-scroll-nav next" id="analytics-scroll-next" aria-label="Scroll right"><i class="fa-solid fa-chevron-right"></i></button>
+          <div class="analytics-scroll-dots" id="analytics-scroll-dots"></div>
         </div>
 
         <!-- Question difficulty -->
         <div class="card" style="margin-bottom:1.25rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem">
-            <h3 style="margin:0;font-size:1rem"><i class="fa-solid fa-brain" style="color:var(--warning)"></i> Question Difficulty Analysis</h3>
-            <select id="analytics-qd-exam" style="padding:0.4rem 0.65rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-size:0.82rem">
-              <option value="">Select exam…</option>
-            </select>
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem">
+            <div>
+              <h3 style="margin:0 0 0.25rem;font-size:1rem"><i class="fa-solid fa-brain" style="color:var(--warning)"></i> Question Difficulty Analysis</h3>
+              <p class="muted" style="margin:0;font-size:0.82rem">Pick an exam, then open its full question-by-question report in its own view.</p>
+            </div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+              <select id="analytics-qd-exam" class="btn btn-outline btn-sm" style="padding:0.45rem 0.75rem;font-size:0.85rem">
+                <option value="">Select exam…</option>
+              </select>
+              <button type="button" class="btn btn-primary btn-sm" id="analytics-qd-view-btn" disabled>
+                <i class="fa-solid fa-up-right-from-square"></i> View Report
+              </button>
+            </div>
           </div>
-          <div id="analytics-qdifficulty"><p class="muted" style="font-size:0.88rem">Select an exam above to see per-question stats.</p></div>
         </div>
 
         <!-- Top performers -->
