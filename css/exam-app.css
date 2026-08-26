@@ -18,6 +18,10 @@
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  position: sticky;
+  top: calc(var(--nav-h) + 0.75rem);
+  z-index: 40;
+  box-shadow: var(--shadow);
 }
 
 .exam-meta-row {
