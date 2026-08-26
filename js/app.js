@@ -168,7 +168,7 @@ async function route() {
     loadDashboard();
   } else if (path === "exams") {
     showPage("page-exams");
-    loadExamList();
+    loadExamList(params);
   } else if (path === "take" && params.id) {
     showPage("page-take");
     loadTakeExam(params.id);
@@ -290,7 +290,7 @@ async function loadDashboard() {
 /* ---------- Exam list ---------- */
 let examListCache = { exams: [], results: [] };
 
-async function loadExamList() {
+async function loadExamList(params = {}) {
   const grid = document.getElementById("exams-grid");
   grid.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   try {
@@ -299,7 +299,11 @@ async function loadExamList() {
     const resultsSnap = await getDocs(query(collection(db, "results"), where("uid", "==", currentUser.uid)));
     const results = resultsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const available = await filterAccessibleExams(exams);
-    examListCache = { exams: available, results };
+    // Deep-link support: the Course site can send a student here with
+    // #/exams?course=<courseId>&lesson=<lessonId> to jump straight to the
+    // exam(s) attached to that specific course or lesson.
+    const deepLink = params.lesson || params.course ? { courseId: params.course || null, lessonId: params.lesson || null } : null;
+    examListCache = { exams: available, results, deepLink };
 
     populateCategoryFilter(available);
     bindExamToolbar();
@@ -341,7 +345,7 @@ function bindExamToolbar() {
 function renderExamGrid() {
   const grid = document.getElementById("exams-grid");
   if (!grid) return;
-  const { exams, results } = examListCache;
+  const { exams, results, deepLink } = examListCache;
   const q = (document.getElementById("exam-search")?.value || "").trim().toLowerCase();
   const statusFilter = document.getElementById("exam-filter-status")?.value || "";
   const categoryFilter = document.getElementById("exam-filter-category")?.value || "";
@@ -349,12 +353,27 @@ function renderExamGrid() {
   const attemptedIds = new Set(results.map((r) => r.examId));
 
   let list = exams.filter((ex) => {
-    if (q && !`${ex.title} ${ex.category || ""} ${ex.courseName || ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${ex.title} ${ex.category || ""} ${ex.courseName || ""} ${ex.lessonName || ""}`.toLowerCase().includes(q)) return false;
     if (statusFilter === "open" && attemptedIds.has(ex.id)) return false;
     if (statusFilter === "done" && !attemptedIds.has(ex.id)) return false;
     if (categoryFilter && (ex.category || "") !== categoryFilter) return false;
+    if (deepLink?.lessonId && ex.lessonId !== deepLink.lessonId) return false;
+    if (deepLink?.courseId && !deepLink.lessonId && ex.courseId !== deepLink.courseId) return false;
     return true;
   });
+
+  const bannerEl = document.getElementById("exam-deeplink-banner");
+  if (bannerEl) {
+    if (deepLink && (deepLink.lessonId || deepLink.courseId)) {
+      const label = list[0]?.lessonName || list[0]?.courseName || "this course";
+      bannerEl.innerHTML = `<i class="fa-solid fa-location-dot"></i> Showing exam(s) for <strong>${escapeHtml(label)}</strong> · <a href="#/exams" data-clear-deeplink>Show all exams</a>`;
+      bannerEl.classList.remove("hidden");
+      bannerEl.querySelector("[data-clear-deeplink]")?.addEventListener("click", (e) => { e.preventDefault(); examListCache.deepLink = null; history.replaceState(null, "", "#/exams"); renderExamGrid(); });
+    } else {
+      bannerEl.classList.add("hidden");
+      bannerEl.innerHTML = "";
+    }
+  }
 
   if (sortBy === "az") list = [...list].sort((a, b) => a.title.localeCompare(b.title));
   else if (sortBy === "duration") list = [...list].sort((a, b) => (a.duration || 0) - (b.duration || 0));
@@ -424,6 +443,7 @@ function examCardHtml(ex, myAttempts) {
         <span><i class="fa-solid fa-circle-question"></i> ${ex.questionCount || 0} Q</span>
         ${ex.duration ? `<span><i class="fa-solid fa-clock"></i> ${ex.duration} min</span>` : ""}
         ${ex.courseName ? `<span><i class="fa-solid fa-book"></i> ${escapeHtml(ex.courseName)}</span>` : ""}
+        ${ex.lessonName ? `<span><i class="fa-solid fa-location-dot"></i> ${escapeHtml(ex.lessonName)}</span>` : ""}
         ${ex.category ? `<span><i class="fa-solid fa-tag"></i> ${escapeHtml(ex.category)}</span>` : ""}
         ${maxAttempts ? `<span><i class="fa-solid fa-rotate"></i> ${attemptsLeft}/${maxAttempts} left</span>` : ""}
       </div>
