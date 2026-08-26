@@ -37,12 +37,24 @@ import {
   openModal,
   getGreeting,
   getClockTime,
+  getLessonsForCourse,
 } from "./utils.js";
 import { initTheme } from "./theme.js";
 
 let courses = [];
 let exams = [];
 let allResults = [];
+
+// Cache of course -> lessons lookups so switching back and forth in the
+// exam modal (or the analytics filter) doesn't re-fetch every time.
+let lessonsCache = {};
+async function getCachedLessons(courseId) {
+  if (lessonsCache[courseId]) return lessonsCache[courseId];
+  const course = courses.find((c) => c.id === courseId);
+  const lessons = await getLessonsForCourse(course);
+  lessonsCache[courseId] = lessons;
+  return lessons;
+}
 
 // Leaderboard pagination state
 const LB_PAGE_SIZE = 25;
@@ -127,6 +139,7 @@ function bindToolbars() {
 async function refreshCourses() {
   const snap = await getDocs(collection(db, "courses"));
   courses = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  lessonsCache = {};
 }
 
 function examStatusBadge(ex) {
@@ -428,7 +441,7 @@ function renderExamsTableFiltered() {
   const q = (document.getElementById("exams-search")?.value || "").trim().toLowerCase();
   const statusFilter = document.getElementById("exams-status-filter")?.value || "";
   let list = exams.filter((ex) => {
-    if (q && !`${ex.title} ${ex.courseName || ""} ${ex.category || ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${ex.title} ${ex.courseName || ""} ${ex.category || ""} ${ex.lessonName || ""}`.toLowerCase().includes(q)) return false;
     if (statusFilter === "draft" && ex.status !== "draft") return false;
     if (statusFilter === "published" && ex.status === "draft") return false;
     return true;
@@ -440,7 +453,7 @@ function renderExamsTableFiltered() {
   tbody.innerHTML = list
     .map((ex) => `<tr>
       <td><strong>${escapeHtml(ex.title)}</strong>${ex.category ? `<div class="muted" style="font-size:0.75rem">${escapeHtml(ex.category)}</div>` : ""}</td>
-      <td>${escapeHtml(ex.courseName || "—")}</td>
+      <td>${escapeHtml(ex.courseName || "—")}${ex.lessonName ? `<div class="muted" style="font-size:0.75rem"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(ex.lessonName)}</div>` : ""}</td>
       <td>${ex.questionCount || 0}</td>
       <td>${ex.duration ? ex.duration + " min" : "—"}</td>
       <td>${examStatusBadge(ex)}</td>
@@ -529,6 +542,12 @@ async function openExamModal(examId) {
           <select id="em-course-id">
             <option value="">— Open to everyone —</option>
             ${courses.map((c) => `<option value="${c.id}" ${ex?.courseId === c.id ? "selected" : ""}>${escapeHtml(c.title)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field" id="em-lesson-wrap" style="display:${ex?.courseId ? "block" : "none"}">
+          <label><i class="fa-solid fa-location-dot"></i> Link to a specific lesson <span class="muted" style="font-weight:400;font-size:0.8rem">(optional — leave as "whole course" to keep it course-wide)</span></label>
+          <select id="em-lesson-id">
+            <option value="">— Whole course (no specific lesson) —</option>
           </select>
         </div>
         <div class="admin-grid">
@@ -628,6 +647,39 @@ async function openExamModal(examId) {
   }
   renderDrafts();
 
+  // Course -> Lesson linking: the lesson dropdown is populated live from
+  // whichever course is selected, and hides itself when the exam is open
+  // to everyone (no course chosen).
+  const courseSelect = backdrop.querySelector("#em-course-id");
+  const lessonWrap = backdrop.querySelector("#em-lesson-wrap");
+  const lessonSelect = backdrop.querySelector("#em-lesson-id");
+  async function populateLessonSelect(courseId, selectedLessonId) {
+    if (!courseId) {
+      lessonWrap.style.display = "none";
+      lessonSelect.innerHTML = `<option value="">— Whole course (no specific lesson) —</option>`;
+      return;
+    }
+    lessonWrap.style.display = "block";
+    lessonSelect.disabled = true;
+    lessonSelect.innerHTML = `<option>Loading lessons…</option>`;
+    const lessons = await getCachedLessons(courseId);
+    lessonSelect.disabled = false;
+    if (!lessons.length) {
+      lessonSelect.innerHTML = `<option value="">— No lessons found for this course —</option>`;
+      return;
+    }
+    lessonSelect.innerHTML =
+      `<option value="">— Whole course (no specific lesson) —</option>` +
+      lessons
+        .map(
+          (l) =>
+            `<option value="${escapeHtml(l.id)}" data-title="${escapeHtml(l.title)}" ${l.id === selectedLessonId ? "selected" : ""}>${l.moduleTitle ? escapeHtml(l.moduleTitle) + " — " : ""}${escapeHtml(l.title)}</option>`
+        )
+        .join("");
+  }
+  courseSelect.addEventListener("change", () => populateLessonSelect(courseSelect.value, null));
+  if (ex?.courseId) populateLessonSelect(ex.courseId, ex.lessonId || null);
+
   backdrop.querySelector("#add-q-btn").addEventListener("click", () => { syncDraftsFromDom(); questionDrafts.push({ text: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", marks: 1 }); renderDrafts(); });
   backdrop.querySelectorAll(".exam-tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -669,6 +721,10 @@ async function openExamModal(examId) {
       courseName: backdrop.querySelector("#em-course-name").value.trim(),
       category: backdrop.querySelector("#em-category").value.trim(),
       courseId: backdrop.querySelector("#em-course-id").value || null,
+      lessonId: backdrop.querySelector("#em-course-id").value ? backdrop.querySelector("#em-lesson-id").value || null : null,
+      lessonName: backdrop.querySelector("#em-course-id").value && backdrop.querySelector("#em-lesson-id").value
+        ? backdrop.querySelector("#em-lesson-id").selectedOptions[0]?.dataset.title || ""
+        : null,
       duration: Number(backdrop.querySelector("#em-duration").value) || 0,
       negativeMarking: Number(backdrop.querySelector("#em-neg").value) || 0,
       maxAttempts: Number(backdrop.querySelector("#em-max-attempts").value) || 0,
