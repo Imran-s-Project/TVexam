@@ -8,15 +8,15 @@ import { doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com
 export const COURSE_SITE_URL = "https://tvcourse.vercel.app"; // change to your course site URL
 export const SUPPORT_EMAIL = "tv.support.info@gmail.com";
 
-/** Time-of-day greeting (Bengali) + current time string, used by the header. */
+/** Time-of-day greeting + current time string, used by the header. */
 export function getGreeting(name) {
   const h = new Date().getHours();
   let msg;
-  if (h >= 4 && h < 12) msg = "শুভ সকাল";
-  else if (h >= 12 && h < 16) msg = "শুভ দুপুর";
-  else if (h >= 16 && h < 18) msg = "শুভ বিকেল";
-  else if (h >= 18 && h < 21) msg = "শুভ সন্ধ্যা";
-  else msg = "শুভ রাত্রি";
+  if (h >= 4 && h < 12) msg = "Good Morning";
+  else if (h >= 12 && h < 16) msg = "Good Afternoon";
+  else if (h >= 16 && h < 18) msg = "Good Evening";
+  else if (h >= 18 && h < 21) msg = "Good Evening";
+  else msg = "Good Night";
   return name ? `${msg}, ${name}` : msg;
 }
 
@@ -254,7 +254,7 @@ function letterToIndex(letter) {
 
 export function parseBulkQuestions(raw) {
   const text = (raw || "").trim();
-  if (!text) return { questions: [], errors: ["ইনপুট খালি"] };
+  if (!text) return { questions: [], errors: ["Input is empty"] };
 
   // 1) Try JSON
   if (text.startsWith("[") || text.startsWith("{")) {
@@ -282,16 +282,16 @@ function normalizeQ(q, i) {
   const errors = [];
   const optionsRaw = Array.isArray(q.options) ? q.options : [];
   const options = optionsRaw.map((o) => String(o ?? "").trim()).filter((o) => o !== "");
-  if (options.length < 2) errors.push(`প্রশ্ন ${i + 1}: কমপক্ষে ২টি অপশন দরকার`);
+  if (options.length < 2) errors.push(`Question ${i + 1}: at least 2 options are required`);
   let correctIndex = q.correctIndex;
   if (correctIndex == null && q.answer != null) correctIndex = letterToIndex(q.answer);
   if (typeof correctIndex !== "number" || isNaN(correctIndex)) correctIndex = 0;
   if (correctIndex < 0 || correctIndex >= options.length) {
-    errors.push(`প্রশ্ন ${i + 1}: সঠিক উত্তর options-এর বাইরে — 0 ধরা হলো`);
+    errors.push(`Question ${i + 1}: correct answer is outside the options — defaulted to 0`);
     correctIndex = 0;
   }
   const text = String(q.text || q.question || "").trim();
-  if (!text) errors.push(`প্রশ্ন ${i + 1}: প্রশ্নের লেখা খালি`);
+  if (!text) errors.push(`Question ${i + 1}: question text is empty`);
   const marks = Number(q.marks);
   return {
     question: {
@@ -447,13 +447,13 @@ export function openModal(html, large = false) {
   return backdrop;
 }
 
-export const BULK_IMPORT_SAMPLE = `Q: বাংলাদেশের রাজধানীর নাম কী?
-A) চট্টগ্রাম
-B) ঢাকা
-C) খুলনা
-D) রাজশাহী
+export const BULK_IMPORT_SAMPLE = `Q: What is the capital of Bangladesh?
+A) Chattogram
+B) Dhaka
+C) Khulna
+D) Rajshahi
 Answer: B
-Explanation: ঢাকা বাংলাদেশের রাজধানী ও বৃহত্তম শহর।
+Explanation: Dhaka is the capital and largest city of Bangladesh.
 Marks: 1
 
 Q: 5 + 7 = ?

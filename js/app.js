@@ -155,7 +155,7 @@ async function route() {
 
   // Leaving the take-exam page mid-attempt (nav click etc.) confirms first.
   if (takeState && !takeState.submitted && path !== "take") {
-    const ok = confirm("এক্সাম এখনো শেষ হয়নি। এই পেজ ছেড়ে গেলে অগ্রগতি হারিয়ে যাবে। আপনি কি নিশ্চিত?");
+    const ok = confirm("The exam isn't finished yet. Leaving this page will lose your progress. Are you sure?");
     if (!ok) {
       location.hash = "#/take?id=" + takeState.exam.id;
       return;
@@ -266,7 +266,7 @@ async function loadDashboard() {
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0))
       .slice(0, 5);
     if (!recent.length) {
-      resultsEl.innerHTML = `<div class="empty-state"><p>No results yet — take an exam to see scores here</p></div>`;
+      resultsEl.innerHTML = `<div class="empty-state"><div class="icon" style="font-size:1.6rem">📋</div><p style="font-weight:600">No results yet</p><p class="muted" style="font-size:0.83rem">Results will appear here once you take an exam</p></div>`;
     } else {
       resultsEl.innerHTML = `<ul class="list-clean">${recent
         .map(
@@ -316,7 +316,7 @@ function populateCategoryFilter(exams) {
   const cats = [...new Set(exams.map((e) => (e.category || "").trim()).filter(Boolean))].sort();
   const current = sel.value;
   sel.innerHTML =
-    `<option value="">সব ক্যাটাগরি</option>` +
+    `<option value="">All Categories</option>` +
     cats.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   sel.value = cats.includes(current) ? current : "";
 }
@@ -362,7 +362,7 @@ function renderExamGrid() {
 
   if (!list.length) {
     grid.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-file-pen"></i></div><p>${
-      exams.length ? "কোনো এক্সাম মিলেনি — ফিল্টার বদলে দেখুন" : "No exams available"
+      exams.length ? "No exams matched — try adjusting the filters" : "No exams available"
     }</p></div>`;
     return;
   }
@@ -401,17 +401,17 @@ function examCardHtml(ex, myAttempts) {
 
   let statusBadge = `<span class="badge badge-open">Open</span>`;
   if (done) statusBadge = `<span class="badge badge-done">Done</span>`;
-  if (sched.state === "upcoming") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-clock"></i> শীঘ্রই</span>`;
-  if (sched.state === "closed") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> শেষ</span>`;
-  if (locked) statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-ban"></i> সীমা শেষ</span>`;
+  if (sched.state === "upcoming") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-clock"></i> Coming Soon</span>`;
+  if (sched.state === "closed") statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-lock"></i> Ended</span>`;
+  if (locked) statusBadge = `<span class="badge badge-locked"><i class="fa-solid fa-ban"></i> Attempts Used</span>`;
 
   let actionHtml = `<a class="btn btn-primary btn-sm" href="#/take?id=${ex.id}" style="margin-top:auto">${done ? "Retake / View" : "Start Exam"}</a>`;
   if (sched.state === "upcoming") {
-    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">${sched.start ? formatDateTime(Timestamp.fromDate(sched.start)) + "-এ শুরু হবে" : "শীঘ্রই আসছে"}</button>`;
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">${sched.start ? "Starts " + formatDateTime(Timestamp.fromDate(sched.start)) : "Coming soon"}</button>`;
   } else if (sched.state === "closed") {
-    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">এক্সাম বন্ধ হয়ে গেছে</button>`;
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">Exam has closed</button>`;
   } else if (locked) {
-    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">সর্বোচ্চ চেষ্টা শেষ</button>`;
+    actionHtml = `<button class="btn btn-outline btn-sm" disabled style="margin-top:auto">Max attempts reached</button>`;
   }
 
   return `
@@ -425,11 +425,11 @@ function examCardHtml(ex, myAttempts) {
         ${ex.duration ? `<span><i class="fa-solid fa-clock"></i> ${ex.duration} min</span>` : ""}
         ${ex.courseName ? `<span><i class="fa-solid fa-book"></i> ${escapeHtml(ex.courseName)}</span>` : ""}
         ${ex.category ? `<span><i class="fa-solid fa-tag"></i> ${escapeHtml(ex.category)}</span>` : ""}
-        ${maxAttempts ? `<span><i class="fa-solid fa-rotate"></i> ${attemptsLeft}/${maxAttempts} বাকি</span>` : ""}
+        ${maxAttempts ? `<span><i class="fa-solid fa-rotate"></i> ${attemptsLeft}/${maxAttempts} left</span>` : ""}
       </div>
       ${
         done
-          ? `<div class="muted" style="font-size:0.85rem">সর্বোচ্চ স্কোর: <strong>${formatScore(best.score)}/${best.total}</strong> (${best.percent}%) · ${myAttempts.length} বার দেওয়া হয়েছে</div>`
+          ? `<div class="muted" style="font-size:0.85rem">Best score: <strong>${formatScore(best.score)}/${best.total}</strong> (${best.percent}%) · attempted ${myAttempts.length} time(s)</div>`
           : ""
       }
       ${actionHtml}
@@ -469,19 +469,19 @@ async function loadTakeExam(examId) {
     const exam = { id: examSnap.id, ...examSnap.data() };
 
     if (exam.status === "draft") {
-      view.innerHTML = `<div class="empty-state"><p>এই এক্সাম এখনো প্রকাশিত হয়নি</p></div>`;
+      view.innerHTML = `<div class="empty-state"><p>This exam hasn't been published yet</p></div>`;
       return;
     }
 
     const sched = examScheduleState(exam);
     if (sched.state === "upcoming") {
-      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-clock"></i></div><p>এই এক্সাম এখনো শুরু হয়নি${
-        sched.start ? " — শুরু হবে " + sched.start.toLocaleString() : ""
+      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-clock"></i></div><p>This exam hasn't started yet${
+        sched.start ? " — starts " + sched.start.toLocaleString() : ""
       }</p></div>`;
       return;
     }
     if (sched.state === "closed") {
-      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-lock"></i></div><p>এই এক্সামের সময়সীমা শেষ হয়ে গেছে</p></div>`;
+      view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-lock"></i></div><p>This exam's time window has closed</p></div>`;
       return;
     }
 
@@ -507,8 +507,8 @@ async function loadTakeExam(examId) {
       );
       attemptsSoFar = rSnap.size;
       if (attemptsSoFar >= maxAttempts) {
-        view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-ban"></i></div><p>আপনার সর্বোচ্চ ${maxAttempts} বার চেষ্টার সীমা শেষ হয়ে গেছে।</p>
-          <a class="btn btn-outline" href="#/results">আমার রেজাল্ট দেখুন</a></div>`;
+        view.innerHTML = `<div class="empty-state"><div class="icon"><i class="fa-solid fa-ban"></i></div><p>You've reached the maximum of ${maxAttempts} attempt(s).</p>
+          <a class="btn btn-outline" href="#/results">View My Results</a></div>`;
         return;
       }
     }
@@ -565,7 +565,7 @@ function navigatorHtml() {
   return `
     <button type="button" class="q-map-toggle" id="q-map-toggle" aria-expanded="false">
       <i class="fa-solid fa-table-cells"></i>
-      <span>প্রশ্ন ম্যাপ</span>
+      <span>Question Map</span>
       <span class="q-map-toggle-stats">
         <i class="fa-solid fa-check"></i> ${answeredCount}
         ${flaggedCount ? `· <i class="fa-solid fa-flag"></i> ${flaggedCount}` : ""}
@@ -586,9 +586,9 @@ function navigatorHtml() {
         .join("")}
     </div>
     <div class="q-nav-legend" id="q-nav-legend">
-      <span><i class="dot answered"></i> উত্তর দেওয়া</span>
-      <span><i class="dot flagged"></i> ফ্ল্যাগ করা</span>
-      <span><i class="dot"></i> বাকি আছে</span>
+      <span><i class="dot answered"></i> Answered</span>
+      <span><i class="dot flagged"></i> Flagged</span>
+      <span><i class="dot"></i> Remaining</span>
     </div>`;
 }
 
@@ -622,8 +622,8 @@ function renderTakeShell() {
       <div>
         <strong>${escapeHtml(exam.title)}</strong>
         <div class="exam-meta-row">
-          <span class="exam-meta-chip"><i class="fa-solid fa-list-ol"></i> ${questions.length}টি প্রশ্ন</span>
-          ${exam.negativeMarking ? `<span class="exam-meta-chip warn"><i class="fa-solid fa-minus"></i> −${exam.negativeMarking}/ভুল</span>` : ""}
+          <span class="exam-meta-chip"><i class="fa-solid fa-list-ol"></i> ${questions.length} Question(s)</span>
+          ${exam.negativeMarking ? `<span class="exam-meta-chip warn"><i class="fa-solid fa-minus"></i> −${exam.negativeMarking}/wrong</span>` : ""}
         </div>
       </div>
       ${
@@ -672,8 +672,8 @@ function confirmSubmit() {
   const { questions, answers } = takeState;
   const unanswered = questions.length - Object.keys(answers).length;
   const msg = unanswered
-    ? `আপনার ${unanswered}টি প্রশ্নের উত্তর দেওয়া হয়নি। এখনই সাবমিট করতে চান?`
-    : "এক্সাম সাবমিট করতে চান?";
+    ? `You have ${unanswered} unanswered question(s). Submit now anyway?`
+    : "Submit the exam?";
   if (confirm(msg)) submitExam();
 }
 
@@ -683,15 +683,49 @@ function fmtTime(sec) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function playBeep(freq = 880, duration = 200) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + duration / 1000);
+  } catch (_) {}
+}
+
 function startTimer() {
   const el = document.getElementById("timer-text");
   const wrap = document.getElementById("exam-timer");
+  let warned5 = false, warned1 = false;
   takeState.timerInterval = setInterval(() => {
     if (!takeState) return;
     takeState.remainingSec--;
     if (el) el.textContent = fmtTime(Math.max(0, takeState.remainingSec));
-    if (takeState.remainingSec <= 60 && wrap) wrap.classList.add("danger");
-    else if (takeState.remainingSec <= 180 && wrap) wrap.classList.add("warn");
+
+    // 5-minute warning
+    if (takeState.remainingSec <= 300 && takeState.remainingSec > 290 && !warned5) {
+      warned5 = true;
+      wrap?.classList.add("warn");
+      toast("⏳ Only 5 minutes left!", "info");
+      playBeep(660, 300);
+      wrap?.classList.add("timer-pulse");
+      setTimeout(() => wrap?.classList.remove("timer-pulse"), 1000);
+    }
+    // 1-minute warning
+    if (takeState.remainingSec <= 60 && !warned1) {
+      warned1 = true;
+      wrap?.classList.remove("warn");
+      wrap?.classList.add("danger");
+      toast("🚨 Only 1 minute left! Submit quickly.", "error");
+      playBeep(1047, 400);
+      wrap?.classList.add("timer-pulse");
+      setTimeout(() => wrap?.classList.remove("timer-pulse"), 1200);
+    }
     if (takeState.remainingSec <= 0) {
       clearInterval(takeState.timerInterval);
       toast("Time is up — submitting", "info");
@@ -904,15 +938,19 @@ function reviewListHtml(review) {
 }
 
 function showResultScreen({ score, total, percent, correct, wrong, unanswered, timeTakenSeconds, review, examTitle, neg, passed, passingPercent }) {
+  const emoji = percent >= 80 ? "🎉" : percent >= 50 ? "👍" : "💪";
+  const shareText = `${emoji} I scored ${percent}% on "${examTitle}"! Correct: ${correct}, Wrong: ${wrong}, Time: ${formatDuration(timeTakenSeconds)} · Tech Verse Exam`;
+  const shareUrl = location.href.split("#")[0];
+
   document.getElementById("take-view").innerHTML = `
     <div class="result-hero">
       <div class="score-ring" style="--p:${percent}"><span>${percent}%</span></div>
       <h2>${escapeHtml(examTitle)}</h2>
       <p class="muted">Score: <strong>${formatScore(score)}</strong> / ${total}</p>
-      ${passed != null ? `<span class="badge ${passed ? "badge-open" : "badge-locked"}">${passed ? "Passed" : "Failed"} (pass mark ${passingPercent}%)</span>` : ""}
+      ${passed != null ? `<span class="badge ${passed ? "badge-open" : "badge-locked"}">${passed ? "✓ Passed" : "✗ Failed"} (pass mark ${passingPercent}%)</span>` : ""}
       <div class="result-stats">
-        <div class="s"><div class="v">${correct}</div><div class="l">Correct</div></div>
-        <div class="s"><div class="v">${wrong}</div><div class="l">Wrong</div></div>
+        <div class="s"><div class="v" style="color:#22c55e">${correct}</div><div class="l">Correct</div></div>
+        <div class="s"><div class="v" style="color:#ef4444">${wrong}</div><div class="l">Wrong</div></div>
         <div class="s"><div class="v">${unanswered}</div><div class="l">Skipped</div></div>
         <div class="s"><div class="v">${formatDuration(timeTakenSeconds)}</div><div class="l">Time</div></div>
       </div>
@@ -920,13 +958,40 @@ function showResultScreen({ score, total, percent, correct, wrong, unanswered, t
       <div style="margin-top:1.25rem;display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
         <a class="btn btn-primary" href="#/exams">Back to Exams</a>
         <a class="btn btn-outline" href="#/results">My Results</a>
+        <button class="btn btn-ghost" id="share-result-btn" style="display:flex;align-items:center;gap:0.4rem"><i class="fa-solid fa-share-nodes"></i> Share</button>
       </div>
     </div>
     <h3 style="margin-bottom:0.75rem">Answer Review</h3>
     ${reviewListHtml(review)}`;
+
+  document.getElementById("share-result-btn")?.addEventListener("click", () => {
+    if (navigator.share) {
+      navigator.share({ title: "Tech Verse Exam Result", text: shareText, url: shareUrl }).catch(() => {});
+    } else {
+      // Fallback — copy to clipboard + show WhatsApp link
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText + "\n" + shareUrl)}`;
+      openModal(`
+        <div class="modal-head">
+          <h3><i class="fa-solid fa-share-nodes"></i> Share Result</h3>
+          <button class="modal-close-btn" data-modal-close><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="share-text-box">${escapeHtml(shareText)}</div>
+          <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap">
+            <a href="${waUrl}" target="_blank" class="btn btn-primary" style="background:#25D366;border-color:#25D366">
+              <i class="fa-brands fa-whatsapp"></i> WhatsApp
+            </a>
+            <button class="btn btn-outline" id="copy-share-btn"><i class="fa-regular fa-copy"></i> Copy Text</button>
+          </div>
+        </div>`);
+      document.getElementById("copy-share-btn")?.addEventListener("click", () => {
+        navigator.clipboard.writeText(shareText + "\n" + shareUrl).then(() => toast("Copied!", "success")).catch(() => {});
+      });
+    }
+  });
 }
 
-/* ---------- My results ---------- */
+/* ---------- My Results — with Detailed Analytics ---------- */
 async function loadMyResults() {
   const el = document.getElementById("results-list");
   const statsEl = document.getElementById("results-stats");
@@ -936,64 +1001,143 @@ async function loadMyResults() {
     const rows = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+
     if (!rows.length) {
       if (statsEl) statsEl.innerHTML = "";
-      el.innerHTML = `<div class="empty-state"><p>No results yet</p></div>`;
+      el.innerHTML = `<div class="empty-state" style="padding:2.5rem 1rem">
+        <div class="icon"><i class="fa-solid fa-file-circle-question"></i></div>
+        <p style="font-weight:700;font-size:1.05rem">No exams taken yet</p>
+        <p class="muted" style="font-size:0.85rem;max-width:280px;margin:0 auto">Take an exam to see your detailed results and analytics here!</p>
+        <a class="btn btn-primary btn-sm" href="#/exams" style="margin-top:1rem">View Exam List →</a>
+      </div>`;
       return;
     }
 
+    // ---- KPI stats ----
     if (statsEl) {
       const avg = Math.round(rows.reduce((s, r) => s + (r.percent || 0), 0) / rows.length);
       const best = Math.max(...rows.map((r) => r.percent || 0));
       const distinctExams = new Set(rows.map((r) => r.examId)).size;
+      const totalCorrect = rows.reduce((s, r) => s + (r.correctCount || 0), 0);
+      const totalWrong = rows.reduce((s, r) => s + (r.wrongCount || 0), 0);
+      const totalTimeSec = rows.reduce((s, r) => s + (r.timeTakenSeconds || 0), 0);
+      const passRows = rows.filter((r) => r.passed === true || r.passed === false);
+      const passRate = passRows.length ? Math.round((passRows.filter((r) => r.passed).length / passRows.length) * 100) : null;
       statsEl.innerHTML = [
         { n: rows.length, l: "Total Attempts" },
-        { n: distinctExams, l: "Exams Attempted" },
-        { n: avg + "%", l: "Average" },
-        { n: best + "%", l: "Best" },
+        { n: distinctExams, l: "Exams Taken" },
+        { n: avg + "%", l: "Average Score" },
+        { n: best + "%", l: "Best Score" },
+        { n: totalCorrect, l: "Total Correct ✓" },
+        { n: totalWrong, l: "Total Wrong ✗" },
+        { n: formatDuration(totalTimeSec), l: "Total Time" },
+        { n: passRate != null ? passRate + "%" : "—", l: "Pass Rate" },
       ]
         .map((s) => `<div class="stat-card"><div class="n">${s.n}</div><div class="l">${s.l}</div></div>`)
         .join("");
     }
 
-    el.innerHTML = `
-      <div class="table-wrap"><table class="data-table">
-        <thead><tr><th>Exam</th><th>Score</th><th>Attempt</th><th>Date</th><th></th></tr></thead>
-        <tbody>
-          ${rows
-            .map(
-              (r) => `
-            <tr>
-              <td>${escapeHtml(r.examTitle || "Exam")}</td>
-              <td><strong>${formatScore(r.score)}/${r.total}</strong> (${r.percent}%)${r.passed === true ? ' <span class="badge badge-open">Pass</span>' : r.passed === false ? ' <span class="badge badge-locked">Fail</span>' : ""}</td>
-              <td>#${r.attemptNumber || 1}</td>
-              <td>${formatDateTime(r.submittedAt)}</td>
-              <td style="display:flex;gap:0.35rem">
-                <button class="btn btn-ghost btn-sm" data-view-review="${r.id}">Review</button>
-                <a class="btn btn-ghost btn-sm" href="#/take?id=${r.examId}">Retake</a>
-              </td>
-            </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table></div>`;
+    // ---- Score trend mini chart ----
+    const trendHtml = rows.length >= 2 ? (() => {
+      const sorted = [...rows].reverse().slice(-15);
+      const max = Math.max(...sorted.map((r) => r.percent || 0), 1);
+      return `<div class="my-results-trend card" style="margin-bottom:1rem;padding:1rem 1rem 0.5rem">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.65rem;text-transform:uppercase;letter-spacing:.04em">
+          <i class="fa-solid fa-chart-line" style="color:var(--primary-hover)"></i> Score Trend (last ${sorted.length})
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:4px;height:52px">
+          ${sorted.map((r) => {
+            const h = Math.max(4, (r.percent / max) * 48);
+            const color = r.percent >= 70 ? "#22c55e" : r.percent >= 40 ? "#f59e0b" : "#ef4444";
+            return `<div style="flex:1;min-width:10px;height:${h}px;background:${color};border-radius:3px 3px 0 0;opacity:.85" title="${r.examTitle||''}: ${r.percent}%"></div>`;
+          }).join("")}
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:3px;font-size:0.68rem;color:var(--text-dim)">
+          <span>Oldest</span><span>Recent</span>
+        </div>
+      </div>`;
+    })() : "";
+
+    // ---- Exam-wise breakdown ----
+    const examGroups = {};
+    rows.forEach((r) => {
+      if (!examGroups[r.examId]) examGroups[r.examId] = { title: r.examTitle || "Exam", attempts: [] };
+      examGroups[r.examId].attempts.push(r);
+    });
+    const breakdownHtml = `<div class="card" style="margin-bottom:1rem;padding:1rem">
+      <div style="font-size:0.82rem;font-weight:600;color:var(--text-muted);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:.04em">
+        <i class="fa-solid fa-layer-group" style="color:var(--accent)"></i> Exam-wise Breakdown
+      </div>
+      ${Object.values(examGroups).map((g) => {
+        const best = Math.max(...g.attempts.map((r) => r.percent || 0));
+        const avgG = Math.round(g.attempts.reduce((s, r) => s + (r.percent || 0), 0) / g.attempts.length);
+        const barColor = best >= 70 ? "#22c55e" : best >= 40 ? "#f59e0b" : "#ef4444";
+        return `<div style="margin-bottom:0.85rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+            <span style="font-size:0.85rem;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(g.title)}</span>
+            <span style="font-size:0.78rem;color:var(--text-dim);margin-left:0.5rem;flex-shrink:0">${g.attempts.length} attempt · avg ${avgG}%</span>
+            <span style="font-size:0.85rem;font-weight:800;font-family:var(--mono);color:${barColor};margin-left:0.5rem;flex-shrink:0">Best: ${best}%</span>
+          </div>
+          <div style="height:7px;background:var(--bg-soft);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${best}%;background:${barColor};border-radius:4px;transition:width .5s"></div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`;
+
+    // ---- History table ----
+    el.innerHTML = trendHtml + breakdownHtml + `
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:0.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Full Exam History</span>
+          <span style="font-size:0.78rem;color:var(--text-dim)">${rows.length} attempt(s)</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Exam</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Time</th><th>Attempt</th><th>Date</th><th></th></tr></thead>
+            <tbody>
+              ${rows.map((r) => `<tr>
+                <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(r.examTitle || "Exam")}</td>
+                <td>
+                  <strong style="font-family:var(--mono)">${formatScore(r.score)}/${r.total}</strong>
+                  <span style="color:var(--text-dim);font-size:0.82rem"> (${r.percent}%)</span>
+                  ${r.passed === true ? ' <span class="badge badge-open" style="font-size:0.68rem">Pass</span>' : r.passed === false ? ' <span class="badge badge-locked" style="font-size:0.68rem">Fail</span>' : ""}
+                </td>
+                <td style="color:#22c55e;font-weight:700">${r.correctCount ?? "—"}</td>
+                <td style="color:#ef4444;font-weight:700">${r.wrongCount ?? "—"}</td>
+                <td style="font-size:0.8rem;font-family:var(--mono)">${formatDuration(r.timeTakenSeconds || 0)}</td>
+                <td style="color:var(--text-dim)">#${r.attemptNumber || 1}</td>
+                <td style="font-size:0.78rem;color:var(--text-dim);white-space:nowrap">${formatDateTime(r.submittedAt)}</td>
+                <td>
+                  <div style="display:flex;gap:0.3rem">
+                    <button class="btn btn-ghost btn-sm" data-view-review="${r.id}" style="padding:0.3rem 0.55rem">Review</button>
+                    <a class="btn btn-ghost btn-sm" href="#/take?id=${r.examId}" style="padding:0.3rem 0.55rem">Retake</a>
+                  </div>
+                </td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
 
     el.querySelectorAll("[data-view-review]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const r = rows.find((x) => x.id === btn.dataset.viewReview);
         if (!r) return;
-        openModal(
-          `
+        openModal(`
           <div class="modal-head">
             <h3>${escapeHtml(r.examTitle || "Exam")} — Attempt #${r.attemptNumber || 1}</h3>
             <button class="modal-close-btn" data-modal-close><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div class="modal-body">
             <p class="muted" style="margin-top:-0.5rem">Score: <strong>${formatScore(r.score)}/${r.total}</strong> (${r.percent}%) · ${formatDateTime(r.submittedAt)}</p>
+            <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+              <span style="color:#22c55e;font-weight:700"><i class="fa-solid fa-check"></i> ${r.correctCount ?? "?"} Correct</span>
+              <span style="color:#ef4444;font-weight:700"><i class="fa-solid fa-xmark"></i> ${r.wrongCount ?? "?"} Wrong</span>
+              <span style="color:var(--text-dim)"><i class="fa-solid fa-clock"></i> ${formatDuration(r.timeTakenSeconds || 0)}</span>
+            </div>
             ${Array.isArray(r.review) && r.review.length ? reviewListHtml(r.review) : '<p class="muted">No saved review for this attempt.</p>'}
-          </div>`,
-          true
-        );
+          </div>`, true);
       });
     });
   } catch (e) {
@@ -1003,6 +1147,12 @@ async function loadMyResults() {
 }
 
 /* ---------- Leaderboard ---------- */
+/* ---------- Leaderboard — slim rows, paginated, my-rank highlight ---------- */
+const LB_PAGE_SIZE_APP = 20;
+let lbPageApp = 1;
+let lbAllRowsApp = [];
+let lbExamIdApp = "";
+
 async function loadLeaderboard() {
   const select = document.getElementById("lb-exam-select");
   const list = document.getElementById("lb-list");
@@ -1010,31 +1160,27 @@ async function loadLeaderboard() {
   try {
     const examsSnap = await getDocs(collection(db, "exams"));
     const exams = examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((ex) => ex.status !== "draft");
-    const currentVal = select.value;
-    select.innerHTML =
-      `<option value="">All exams</option>` +
-      exams.map((e) => `<option value="${e.id}">${escapeHtml(e.title)}</option>`).join("");
-    select.value = currentVal;
-    select.onchange = () => renderLb(select.value, list);
-    search?.addEventListener("input", debounce(() => renderLb(select.value, list), 200));
-
-    await renderLb(select.value, list);
+    select.innerHTML = `<option value="">All exams</option>` + exams.map((e) => `<option value="${e.id}">${escapeHtml(e.title)}</option>`).join("");
+    select.onchange = () => { lbPageApp = 1; lbExamIdApp = select.value; renderLbApp(); };
+    search?.addEventListener("input", debounce(() => { lbPageApp = 1; renderLbApp(); }, 200));
+    await renderLbApp();
   } catch (e) {
     console.error(e);
     list.innerHTML = `<div class="empty-state"><p>Could not load leaderboard</p></div>`;
   }
 }
 
-async function renderLb(examId, list) {
+async function renderLbApp() {
+  const list = document.getElementById("lb-list");
+  if (!list) return;
   list.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   try {
-    let snap;
-    if (examId) {
-      snap = await getDocs(query(collection(db, "results"), where("examId", "==", examId)));
-    } else {
-      snap = await getDocs(collection(db, "results"));
-    }
-    // Best attempt per user (for selected exam) or overall by percent
+    const examId = document.getElementById("lb-exam-select")?.value || "";
+    lbExamIdApp = examId;
+    let snap = examId
+      ? await getDocs(query(collection(db, "results"), where("examId", "==", examId)))
+      : await getDocs(collection(db, "results"));
+
     const best = new Map();
     snap.docs.forEach((d) => {
       const r = d.data();
@@ -1042,29 +1188,77 @@ async function renderLb(examId, list) {
       const prev = best.get(key);
       if (!prev || (r.percent || 0) > (prev.percent || 0)) best.set(key, { id: d.id, ...r });
     });
+
     const searchQ = (document.getElementById("lb-search")?.value || "").trim().toLowerCase();
     let rows = [...best.values()].sort((a, b) => (b.percent || 0) - (a.percent || 0));
     if (searchQ) rows = rows.filter((r) => (r.studentName || r.studentEmail || "").toLowerCase().includes(searchQ));
-    rows = rows.slice(0, 50);
+    lbAllRowsApp = rows;
+
     if (!rows.length) {
-      list.innerHTML = `<div class="empty-state"><p>No scores yet</p></div>`;
+      list.innerHTML = `<div class="empty-state" style="padding:2.5rem 1rem">
+        <div class="icon"><i class="fa-solid fa-ranking-star"></i></div>
+        <p style="font-weight:600">No scores yet</p>
+        <p class="muted" style="font-size:0.85rem">Rankings will appear here once exams are taken!</p>
+      </div>`;
       return;
     }
-    list.innerHTML = rows
-      .map((r, i) => {
-        const rankClass = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
-        const isMe = r.uid === currentUser?.uid;
-        return `
-        <div class="lb-row ${isMe ? "lb-row-me" : ""}">
-          <div class="lb-rank ${rankClass}">${i + 1}</div>
-          <div class="lb-name">
-            ${escapeHtml(r.studentName || r.studentEmail || "Student")}${isMe ? ' <span class="badge badge-free">You</span>' : ""}
-            ${!examId ? `<div class="muted" style="font-size:0.78rem">${escapeHtml(r.examTitle || "")}</div>` : ""}
-          </div>
-          <div class="lb-score">${r.percent}%</div>
-        </div>`;
-      })
-      .join("");
+
+    // My rank
+    const myRank = rows.findIndex((r) => r.uid === currentUser?.uid);
+    const totalPages = Math.ceil(rows.length / LB_PAGE_SIZE_APP);
+    const page = Math.min(lbPageApp, totalPages);
+    const pageRows = rows.slice((page - 1) * LB_PAGE_SIZE_APP, page * LB_PAGE_SIZE_APP);
+    const globalOffset = (page - 1) * LB_PAGE_SIZE_APP;
+
+    // My-position strip
+    let myStripHtml = "";
+    if (myRank >= 0 && (myRank < globalOffset || myRank >= globalOffset + LB_PAGE_SIZE_APP)) {
+      const me = rows[myRank];
+      myStripHtml = `<div class="lb-my-strip">
+        <i class="fa-solid fa-location-dot"></i>
+        Your Rank: <strong>#${myRank + 1}</strong> &nbsp;·&nbsp; ${me.percent}%
+        ${totalPages > 1 ? `<button class="btn btn-ghost btn-sm" id="lb-jump-me">Go to My Page</button>` : ""}
+      </div>`;
+    }
+
+    list.innerHTML = myStripHtml + pageRows.map((r, localIdx) => {
+      const rank = globalOffset + localIdx + 1;
+      const rankClass = rank === 1 ? "gold" : rank === 2 ? "silver" : rank === 3 ? "bronze" : "";
+      const isMe = r.uid === currentUser?.uid;
+      const initials = (r.studentName || r.studentEmail || "?").slice(0, 2).toUpperCase();
+      const attempts = lbAllRowsApp.filter ? 0 : 0; // will show in tooltip
+      return `<div class="lb-slim-row-pub ${isMe ? "lb-row-me-pub" : ""}">
+        <div class="lb-slim-rank-pub ${rankClass}">${rank}</div>
+        <div class="lb-slim-av-pub">${initials}</div>
+        <div class="lb-slim-info-pub">
+          <div class="lb-slim-name-pub">${escapeHtml(r.studentName || r.studentEmail || "Student")}${isMe ? ' <span class="badge badge-free" style="font-size:0.68rem;padding:0.1rem 0.4rem">You</span>' : ""}</div>
+          ${!examId ? `<div class="lb-slim-sub-pub">${escapeHtml(r.examTitle || "")}</div>` : ""}
+        </div>
+        <div class="lb-slim-score-pub ${rankClass}">${r.percent}%</div>
+      </div>`;
+    }).join("")
+    + (totalPages > 1 ? `<div class="lb-pagination-pub" id="lb-pg-pub"></div>` : "");
+
+    // Jump to my page
+    list.querySelector("#lb-jump-me")?.addEventListener("click", () => {
+      lbPageApp = Math.ceil((myRank + 1) / LB_PAGE_SIZE_APP);
+      renderLbApp();
+    });
+
+    // Pagination
+    const pgEl = list.querySelector("#lb-pg-pub");
+    if (pgEl) {
+      let ph = "";
+      if (page > 1) ph += `<button class="btn btn-ghost btn-sm" data-pg="${page - 1}">← Prev</button>`;
+      for (let p2 = Math.max(1, page - 2); p2 <= Math.min(totalPages, page + 2); p2++) {
+        ph += `<button class="btn btn-sm ${p2 === page ? "btn-primary" : "btn-ghost"}" data-pg="${p2}">${p2}</button>`;
+      }
+      if (page < totalPages) ph += `<button class="btn btn-ghost btn-sm" data-pg="${page + 1}">Next →</button>`;
+      pgEl.innerHTML = ph;
+      pgEl.querySelectorAll("[data-pg]").forEach((btn) => {
+        btn.addEventListener("click", () => { lbPageApp = Number(btn.dataset.pg); renderLbApp(); });
+      });
+    }
   } catch (e) {
     console.error(e);
     list.innerHTML = `<div class="empty-state"><p>Could not load (check results read rules)</p></div>`;
@@ -1085,7 +1279,7 @@ async function loadImageAsDataUrl(url) {
 
 async function generateProfilePdf(p, history) {
   if (!window.jspdf) {
-    toast("PDF লাইব্রেরি লোড হয়নি", "error");
+    toast("PDF library did not load", "error");
     return;
   }
   const { jsPDF } = window.jspdf;
@@ -1273,15 +1467,15 @@ async function loadProfile() {
         <div>
           <form id="profile-form">
             <div class="admin-grid">
-              <div class="field"><label>নাম</label><input type="text" id="pf-name" value="${escapeHtml(p?.displayName || currentUser.displayName || "")}" /></div>
-              <div class="field"><label>ফোন নম্বর</label><input type="tel" id="pf-phone" placeholder="+8801XXXXXXXXX" value="${escapeHtml(p?.phone || "")}" /></div>
+              <div class="field"><label>Name</label><input type="text" id="pf-name" value="${escapeHtml(p?.displayName || currentUser.displayName || "")}" /></div>
+              <div class="field"><label>Phone Number</label><input type="tel" id="pf-phone" placeholder="+8801XXXXXXXXX" value="${escapeHtml(p?.phone || "")}" /></div>
             </div>
-            <div class="field"><label>ঠিকানা</label><input type="text" id="pf-address" placeholder="জেলা, বিভাগ" value="${escapeHtml(p?.address || "")}" /></div>
+            <div class="field"><label>Address</label><input type="text" id="pf-address" placeholder="District, Division" value="${escapeHtml(p?.address || "")}" /></div>
             <div class="admin-grid">
-              <div class="field"><label>জন্মতারিখ</label><input type="date" id="pf-dob" value="${escapeHtml(p?.dob || "")}" /></div>
-              <div class="field"><label>ইমেইল</label><input type="email" value="${escapeHtml(currentUser.email || "")}" disabled /></div>
+              <div class="field"><label>Date of Birth</label><input type="date" id="pf-dob" value="${escapeHtml(p?.dob || "")}" /></div>
+              <div class="field"><label>Email</label><input type="email" value="${escapeHtml(currentUser.email || "")}" disabled /></div>
             </div>
-            <div class="field-group-label">সোশ্যাল লিংক</div>
+            <div class="field-group-label">Social Links</div>
             <div class="admin-grid">
               <div class="field"><label><i class="fa-brands fa-facebook"></i> Facebook</label><input type="url" id="pf-fb" placeholder="https://facebook.com/…" value="${escapeHtml(p?.social?.facebook || "")}" /></div>
               <div class="field"><label><i class="fa-brands fa-youtube"></i> YouTube</label><input type="url" id="pf-yt" placeholder="https://youtube.com/@…" value="${escapeHtml(p?.social?.youtube || "")}" /></div>
@@ -1297,8 +1491,8 @@ async function loadProfile() {
       </div>
 
       <div class="card profile-courses-card">
-        <h3 style="margin:0 0 0.35rem"><i class="fa-solid fa-graduation-cap"></i> আমার কোর্স ও পারচেজ হিস্ট্রি</h3>
-        <p class="muted" style="margin:0 0 0.9rem;font-size:0.85rem">Course সাইট থেকে লাইভ — একই Firebase অ্যাকাউন্টে যুক্ত।</p>
+        <h3 style="margin:0 0 0.35rem"><i class="fa-solid fa-graduation-cap"></i> My Courses & Purchase History</h3>
+        <p class="muted" style="margin:0 0 0.9rem;font-size:0.85rem">Live from the Course site — linked to the same Firebase account.</p>
         ${
           history.length
             ? `<ul class="list-clean">${history
@@ -1313,7 +1507,7 @@ async function loadProfile() {
               </li>`
                 )
                 .join("")}</ul>`
-            : `<div class="empty-state" style="padding:1.5rem 1rem"><p>এখনো কোনো কোর্স আনলক করা হয়নি — <a href="${COURSE_SITE_URL}" target="_blank" rel="noopener">Course Site এ দেখুন</a></p></div>`
+            : `<div class="empty-state" style="padding:1.5rem 1rem"><p>No courses unlocked yet — <a href="${COURSE_SITE_URL}" target="_blank" rel="noopener">view on Course Site</a></p></div>`
         }
       </div>
     </div>`;
@@ -1328,7 +1522,7 @@ async function loadProfile() {
       await generateProfilePdf(p, history);
     } catch (err) {
       console.error(err);
-      toast("PDF তৈরি করা যায়নি", "error");
+      toast("Could not generate PDF", "error");
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalHtml;
