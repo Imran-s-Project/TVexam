@@ -174,6 +174,62 @@ export async function getUserCourseHistory(uid, coursesList = []) {
   }
 }
 
+/** Find a course's lessons no matter how the Course site happens to store
+ * them — an embedded flat array on the course doc, lessons nested inside
+ * modules/chapters, or a separate `courses/{courseId}/lessons` subcollection.
+ * Tries each pattern in order and returns the first one that has data.
+ * Result is a normalized, flat, ordered list: [{ id, title, moduleTitle }] */
+export async function getLessonsForCourse(course) {
+  if (!course || !course.id) return [];
+
+  const normalize = (raw, i, moduleTitle = "") => {
+    if (typeof raw === "string") return { id: `l${i}`, title: raw, moduleTitle };
+    return {
+      id: String(raw.id ?? raw.lessonId ?? i),
+      title: raw.title || raw.name || raw.lessonTitle || `Lesson ${i + 1}`,
+      moduleTitle,
+    };
+  };
+
+  // 1) Embedded flat array directly on the course document
+  for (const key of ["lessons", "lessonList", "videos", "lectures"]) {
+    if (Array.isArray(course[key]) && course[key].length) {
+      return course[key].map((l, i) => normalize(l, i));
+    }
+  }
+
+  // 2) Embedded modules/chapters/sections, each holding its own lessons array
+  for (const key of ["modules", "chapters", "sections"]) {
+    if (Array.isArray(course[key]) && course[key].length) {
+      const out = [];
+      course[key].forEach((mod, mi) => {
+        const modTitle = mod.title || mod.name || `Module ${mi + 1}`;
+        const nested = Array.isArray(mod.lessons) ? mod.lessons : Array.isArray(mod.videos) ? mod.videos : [];
+        nested.forEach((l, li) => out.push(normalize(l, `${mi}-${li}`, modTitle)));
+      });
+      if (out.length) return out;
+    }
+  }
+
+  // 3) Fallback — a separate Firestore subcollection: courses/{id}/lessons
+  try {
+    const { collection, getDocs, query, orderBy } = await import(
+      "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js"
+    );
+    let snap;
+    try {
+      snap = await getDocs(query(collection(db, "courses", course.id, "lessons"), orderBy("order")));
+    } catch {
+      snap = await getDocs(collection(db, "courses", course.id, "lessons"));
+    }
+    if (!snap.empty) return snap.docs.map((d, i) => normalize({ id: d.id, ...d.data() }, i));
+  } catch {
+    /* no subcollection / no permission — that's fine, just means no lessons found */
+  }
+
+  return [];
+}
+
 /* ---------------------------------------------------------------------- */
 /* Small generic helpers                                                  */
 /* ---------------------------------------------------------------------- */
