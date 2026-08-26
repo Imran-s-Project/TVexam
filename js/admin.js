@@ -130,10 +130,52 @@ function bindToolbars() {
   document.getElementById("results-export-btn")?.addEventListener("click", exportResultsCsv);
   document.getElementById("analytics-refresh-btn")?.addEventListener("click", loadAnalytics);
   document.getElementById("analytics-exam-filter")?.addEventListener("change", loadAnalytics);
-  document.getElementById("analytics-qd-exam")?.addEventListener("change", loadQuestionDifficulty);
+  document.getElementById("analytics-qd-exam")?.addEventListener("change", (e) => {
+    document.getElementById("analytics-qd-view-btn").disabled = !e.target.value;
+  });
+  document.getElementById("analytics-qd-view-btn")?.addEventListener("click", () => {
+    const examId = document.getElementById("analytics-qd-exam")?.value;
+    if (examId) openQuestionDifficultyModal(examId);
+  });
+  bindAnalyticsScrollRow();
   document.getElementById("lb-export-all-pdf-btn")?.addEventListener("click", exportFullLeaderboardPdf);
   document.getElementById("admin-lb-exam")?.addEventListener("change", () => { lbCurrentPage = 1; renderAdminLb(); });
   document.getElementById("admin-lb-search")?.addEventListener("input", debounce(() => { lbCurrentPage = 1; renderAdminLb(); }, 200));
+}
+
+/* Charts carousel: prev/next buttons + dot indicator, all driven off native
+ * scroll position so it stays in sync whether the user swipes, drags, or
+ * clicks the arrows. */
+function bindAnalyticsScrollRow() {
+  const row = document.getElementById("analytics-scroll-row");
+  const prevBtn = document.getElementById("analytics-scroll-prev");
+  const nextBtn = document.getElementById("analytics-scroll-next");
+  const dotsEl = document.getElementById("analytics-scroll-dots");
+  if (!row || row.dataset.bound) return;
+  row.dataset.bound = "1";
+
+  const cardCount = row.children.length;
+  dotsEl.innerHTML = Array.from({ length: cardCount }, (_, i) => `<span data-dot="${i}"></span>`).join("");
+
+  function update() {
+    const cards = [...row.children];
+    const scrollLeft = row.scrollLeft;
+    const maxScroll = row.scrollWidth - row.clientWidth;
+    prevBtn?.classList.toggle("hidden-edge", scrollLeft <= 4);
+    nextBtn?.classList.toggle("hidden-edge", scrollLeft >= maxScroll - 4);
+    const activeIdx = cards.reduce((best, card, i) => (Math.abs(card.offsetLeft - scrollLeft) < Math.abs(cards[best].offsetLeft - scrollLeft) ? i : best), 0);
+    dotsEl.querySelectorAll("span").forEach((d, i) => d.classList.toggle("active", i === activeIdx));
+  }
+  const scrollByCard = (dir) => {
+    const card = row.children[0];
+    const step = card ? card.getBoundingClientRect().width + 18 : row.clientWidth * 0.85;
+    row.scrollBy({ left: dir * step, behavior: "smooth" });
+  };
+  prevBtn?.addEventListener("click", () => scrollByCard(-1));
+  nextBtn?.addEventListener("click", () => scrollByCard(1));
+  row.addEventListener("scroll", debounce(update, 60));
+  window.addEventListener("resize", debounce(update, 150));
+  update();
 }
 
 async function refreshCourses() {
@@ -229,6 +271,82 @@ async function loadOverview() {
 // ============================================================
 // ANALYTICS
 // ============================================================
+function renderDailyAreaChart(counts) {
+  const entries = Object.entries(counts);
+  if (!entries.some(([, v]) => v > 0)) {
+    return `<p class="muted" style="text-align:center;font-size:0.88rem;padding:2.2rem 0">No attempts in the last 30 days</p>`;
+  }
+  const W = 600, H = 130, PAD = 6;
+  const maxCount = Math.max(1, ...entries.map(([, v]) => v));
+  const stepX = (W - PAD * 2) / (entries.length - 1);
+  const points = entries.map(([, v], i) => [
+    PAD + i * stepX,
+    H - PAD - (v / maxCount) * (H - PAD * 2 - 14),
+  ]);
+  const linePath = points.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1][0].toFixed(1)},${H - PAD} L${points[0][0].toFixed(1)},${H - PAD} Z`;
+  const dots = points
+    .map(([x, y], i) => `<circle class="dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="var(--primary-hover)"><title>${entries[i][0]}: ${entries[i][1]} attempt(s)</title></circle>`)
+    .join("");
+  return `
+    <div class="daily-chart-svg-wrap">
+      <svg viewBox="0 0 ${W} ${H}" width="100%" height="130" preserveAspectRatio="none" style="overflow:visible">
+        <defs>
+          <linearGradient id="dailyAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--primary-hover)" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="var(--primary-hover)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="${areaPath}" fill="url(#dailyAreaGrad)" stroke="none" />
+        <path d="${linePath}" fill="none" stroke="var(--primary-hover)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+        ${dots}
+      </svg>
+      <div class="daily-chart-labels">
+        <span>${entries[0][0]}</span><span>${entries[14][0]}</span><span>${entries[29][0]}</span>
+      </div>
+    </div>`;
+}
+
+function renderPassFailDonut(passed, failed, noTracking) {
+  const total = passed + failed + noTracking;
+  if (!total) {
+    return `<p class="muted" style="text-align:center;font-size:0.88rem;padding:2.2rem 0">No data yet</p>`;
+  }
+  const passPct = Math.round((passed / total) * 100);
+  const R = 15.915; // r chosen so the circle's circumference is ~100 units
+  const segs = [
+    { val: passed, color: "#22c55e" },
+    { val: failed, color: "#ef4444" },
+    { val: noTracking, color: "var(--bg-soft)" },
+  ].filter((s) => s.val > 0);
+  let cursor = 0;
+  const circles = segs
+    .map((s) => {
+      const pct = (s.val / total) * 100;
+      const dashoffset = 25 - cursor; // 25 = quarter turn, so the ring starts at 12 o'clock
+      cursor += pct;
+      return `<circle cx="21" cy="21" r="${R}" fill="none" stroke="${s.color}" stroke-width="5" stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${dashoffset}" />`;
+    })
+    .join("");
+  const legendRows = [
+    passed ? { label: "Passed", val: passed, color: "#22c55e" } : null,
+    failed ? { label: "Failed", val: failed, color: "#ef4444" } : null,
+    noTracking ? { label: "No pass mark", val: noTracking, color: "var(--bg-soft)" } : null,
+  ].filter(Boolean);
+  return `
+    <div class="passfail-donut-wrap">
+      <svg class="passfail-donut-svg" viewBox="0 0 42 42" width="140" height="140">
+        <circle cx="21" cy="21" r="${R}" fill="none" stroke="var(--border)" stroke-width="5" />
+        ${circles}
+        <text x="21" y="19.5" text-anchor="middle" font-size="8" font-weight="800" fill="var(--text)">${passPct}%</text>
+        <text x="21" y="25.5" text-anchor="middle" font-size="3.2" fill="var(--text-dim)">passed</text>
+      </svg>
+      <div class="passfail-legend">
+        ${legendRows.map((r) => `<div class="analytics-legend-row"><span style="background:${r.color}"></span><span>${r.label}</span><strong>${r.val} (${Math.round((r.val / total) * 100)}%)</strong></div>`).join("")}
+      </div>
+    </div>`;
+}
+
 async function loadAnalytics() {
   const kpiGrid = document.getElementById("analytics-kpi-grid");
   const dailyChart = document.getElementById("analytics-daily-chart");
@@ -276,7 +394,7 @@ async function loadAnalytics() {
         .join("");
     }
 
-    // Daily attempts — last 30 days
+    // Daily attempts — last 30 days, modern SVG area/line chart
     if (dailyChart) {
       const now = Date.now();
       const dayMs = 86400000;
@@ -295,41 +413,15 @@ async function loadAnalytics() {
           if (key in counts) counts[key]++;
         }
       });
-      const entries = Object.entries(counts);
-      const maxCount = Math.max(1, ...Object.values(counts));
-      dailyChart.innerHTML = `
-        <div style="display:flex;align-items:flex-end;gap:2px;height:80px;overflow-x:auto;padding-bottom:4px">
-          ${entries.map(([label, val]) => `
-            <div style="flex:1;min-width:6px;display:flex;flex-direction:column;align-items:center;gap:2px" title="${label}: ${val} attempts">
-              <div style="width:100%;background:var(--primary-hover);border-radius:3px 3px 0 0;height:${Math.max(2,(val/maxCount)*72)}px;transition:height 0.3s;opacity:${val===0?0.2:0.9}"></div>
-            </div>`).join("")}
-        </div>
-        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:0.68rem;color:var(--text-dim)">
-          <span>${entries[0]?.[0]}</span><span>${entries[14]?.[0]}</span><span>${entries[29]?.[0]}</span>
-        </div>`;
+      dailyChart.innerHTML = renderDailyAreaChart(counts);
     }
 
-    // Pass vs Fail
+    // Pass vs Fail — modern SVG donut + chip legend
     if (passfailEl) {
       const passed = passResults.filter((r) => r.passed).length;
       const failed = passResults.filter((r) => !r.passed).length;
       const noTracking = results.length - passResults.length;
-      if (!results.length) {
-        passfailEl.innerHTML = `<p class="muted" style="text-align:center;font-size:0.88rem">No data yet</p>`;
-      } else {
-        const total = Math.max(1, passed + failed + noTracking);
-        passfailEl.innerHTML = `
-          <div style="display:flex;height:16px;border-radius:8px;overflow:hidden;margin-bottom:1rem">
-            ${passed ? `<div style="flex:${passed};background:#22c55e" title="Passed: ${passed}"></div>` : ""}
-            ${failed ? `<div style="flex:${failed};background:#ef4444" title="Failed: ${failed}"></div>` : ""}
-            ${noTracking ? `<div style="flex:${noTracking};background:var(--bg-soft)" title="Not tracked: ${noTracking}"></div>` : ""}
-          </div>
-          <div style="display:flex;flex-direction:column;gap:0.5rem">
-            ${passed ? `<div class="analytics-legend-row"><span style="background:#22c55e"></span><span>Passed</span><strong>${passed} (${Math.round(passed/total*100)}%)</strong></div>` : ""}
-            ${failed ? `<div class="analytics-legend-row"><span style="background:#ef4444"></span><span>Failed</span><strong>${failed} (${Math.round(failed/total*100)}%)</strong></div>` : ""}
-            ${noTracking ? `<div class="analytics-legend-row"><span style="background:var(--bg-soft)"></span><span>No pass mark</span><strong>${noTracking}</strong></div>` : ""}
-          </div>`;
-      }
+      passfailEl.innerHTML = renderPassFailDonut(passed, failed, noTracking);
     }
 
     // Top performers
@@ -361,9 +453,23 @@ async function loadAnalytics() {
   }
 }
 
-async function loadQuestionDifficulty() {
-  const examId = document.getElementById("analytics-qd-exam")?.value;
-  const el = document.getElementById("analytics-qdifficulty");
+async function openQuestionDifficultyModal(examId) {
+  const exam = exams.find((e) => e.id === examId);
+  const backdrop = openModal(
+    `
+    <div class="modal-head">
+      <h3><i class="fa-solid fa-brain" style="color:var(--warning)"></i> ${exam ? escapeHtml(exam.title) : "Question Report"}</h3>
+      <button class="modal-close-btn" data-modal-close><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <p class="muted" style="margin:-0.4rem 0 1rem;font-size:0.85rem">Per-question accuracy across every attempt of this exam.</p>
+    <div id="qd-modal-body"><div class="loading-screen"><span class="spinner"></span></div></div>
+  `,
+    true
+  );
+  await renderQuestionDifficultyInto(examId, backdrop.querySelector("#qd-modal-body"));
+}
+
+async function renderQuestionDifficultyInto(examId, el) {
   if (!examId || !el) return;
   el.innerHTML = `<div class="loading-screen"><span class="spinner"></span></div>`;
   try {
@@ -377,7 +483,7 @@ async function loadQuestionDifficulty() {
     if (!results.length) { el.innerHTML = `<p class="muted" style="font-size:0.88rem">No attempts yet for this exam.</p>`; return; }
 
     // Count correct/wrong per question index
-    const stats = questions.map((q, idx) => ({ text: q.text, correct: 0, wrong: 0, skipped: 0, total: 0 }));
+    const stats = questions.map((q) => ({ text: q.text, correct: 0, wrong: 0, skipped: 0, total: 0 }));
     results.forEach((r) => {
       if (!Array.isArray(r.review)) return;
       r.review.forEach((rv, idx) => {
@@ -390,7 +496,7 @@ async function loadQuestionDifficulty() {
     });
 
     el.innerHTML = `
-      <div style="overflow-x:auto">
+      <div class="qd-report-table-wrap">
         <table class="data-table">
           <thead><tr><th>#</th><th>Question</th><th>Correct</th><th>Wrong</th><th>Skipped</th><th>Accuracy</th><th>Difficulty</th></tr></thead>
           <tbody>
@@ -420,7 +526,7 @@ async function loadQuestionDifficulty() {
       </div>`;
   } catch (e) {
     console.error(e);
-    el.innerHTML = `<p style="color:var(--danger);font-size:0.88rem">Could not load question stats.</p>`;
+    el.innerHTML = `<p class="muted" style="font-size:0.88rem">Could not load question stats.</p>`;
   }
 }
 
